@@ -128,7 +128,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   }
 
   Future<void> _getGeminiResponse(String userSpeech) async {
-    const apiKey = 'AIzaSyA8FhBX1VI_Z-1AwOlt_UgsBu1j_Sv9pj4';
+    const apiKey = 'Your_API_Key';
     const modelName = 'models/gemini-2.0-flash'; // or 'models/gemini-pro'
 
 final url = Uri.parse(
