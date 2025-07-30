@@ -7,7 +7,7 @@ import 'package:aiassistant1/screens/settings_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
-enum TaskFilter { all, tasks, reminders, archived }
+enum TaskFilter { all, tasks, reminders, completed, archived }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -44,6 +44,8 @@ class _HomeScreenState extends State<HomeScreen> {
         return 'Active Tasks';
       case TaskFilter.reminders:
         return 'Active Reminders';
+      case TaskFilter.completed:
+        return 'Completed Tasks';
       case TaskFilter.archived:
         return 'Archived';
     }
@@ -98,6 +100,13 @@ class _HomeScreenState extends State<HomeScreen> {
               selected:
                   _selectedIndex == 0 && _currentFilter == TaskFilter.reminders,
               onTap: () => _onFilterSelected(TaskFilter.reminders),
+            ),
+            ListTile(
+              leading: const Icon(Icons.check_circle_outline),
+              title: const Text('Completed Tasks'),
+              selected:
+                  _selectedIndex == 0 && _currentFilter == TaskFilter.completed,
+              onTap: () => _onFilterSelected(TaskFilter.completed),
             ),
             ListTile(
               leading: const Icon(Icons.archive_outlined),
@@ -160,6 +169,7 @@ class _TasksViewState extends State<TasksView> {
     if (user == null) return const Center(child: Text('User not logged in'));
 
     bool isArchivedView = widget.filter == TaskFilter.archived;
+    bool isCompletedView = widget.filter == TaskFilter.completed;
     bool? isReminder;
     if (widget.filter == TaskFilter.tasks) {
       isReminder = false;
@@ -167,12 +177,23 @@ class _TasksViewState extends State<TasksView> {
       isReminder = true;
     }
 
-    return StreamBuilder<List<Task>>(
-      stream: _taskService.getTasksStream(
+    // Use different stream for completed tasks
+    Stream<List<Task>> taskStream;
+    if (isCompletedView) {
+      taskStream = _taskService.getCompletedTasksStream(
+        userId: user.uid,
+        isReminder: isReminder,
+      );
+    } else {
+      taskStream = _taskService.getTasksStream(
         userId: user.uid,
         isArchived: isArchivedView,
         isReminder: isReminder,
-      ),
+      );
+    }
+
+    return StreamBuilder<List<Task>>(
+      stream: taskStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -302,26 +323,37 @@ class _TasksViewState extends State<TasksView> {
 
   Widget _buildTaskListItem(BuildContext context, Task task) {
     bool isArchivedView = widget.filter == TaskFilter.archived;
+    bool isCompletedView = widget.filter == TaskFilter.completed;
+    
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
       margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
       elevation: 1.5,
       child: InkWell(
         borderRadius: BorderRadius.circular(8.0),
-        onTap:
-            () => Navigator.push(
+        onTap: isCompletedView 
+          ? null // Disable editing for completed tasks
+          : () => Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => CreateTaskScreen(task: task),
               ),
             ),
         onLongPress: () {
-          if (isArchivedView) {
+          if (isCompletedView) {
+            // For completed tasks, show delete option
+            _showConfirmationDialog(
+              title: 'Delete Task',
+              content: 'Are you sure you want to permanently delete this completed task?',
+              confirmText: 'Delete',
+              onConfirm: () => _taskService.deleteTaskPermanently(task.id!, isReminder: task.isReminder),
+            );
+          } else if (isArchivedView) {
             _showConfirmationDialog(
               title: 'Delete Task',
               content: 'Are you sure you want to permanently delete this task?',
               confirmText: 'Delete',
-              onConfirm: () => _taskService.deleteTaskPermanently(task.id!),
+              onConfirm: () => _taskService.deleteTaskPermanently(task.id!, isReminder: task.isReminder),
             );
           } else {
             _showConfirmationDialog(
@@ -346,9 +378,14 @@ class _TasksViewState extends State<TasksView> {
               ),
             ),
             const SizedBox(width: 10),
+            // Checkbox/completion indicator
             InkWell(
               onTap: () {
-                if (!isArchivedView) {
+                if (isCompletedView) {
+                  // Undo completion (mark as incomplete)
+                  _taskService.toggleTaskCompletion(task.id!, false);
+                } else if (!isArchivedView) {
+                  // Toggle completion for active tasks
                   _taskService.updateTask(
                     task.copyWith(isCompleted: !task.isCompleted),
                   );
@@ -357,13 +394,12 @@ class _TasksViewState extends State<TasksView> {
               customBorder: const CircleBorder(),
               child: Padding(
                 padding: const EdgeInsets.all(4.0),
-                child:
-                    task.isCompleted
-                        ? Icon(Icons.check_circle, color: Colors.green.shade600)
-                        : const Icon(
-                          Icons.radio_button_unchecked_outlined,
-                          color: Colors.grey,
-                        ),
+                child: task.isCompleted
+                    ? Icon(Icons.check_circle, color: Colors.green.shade600)
+                    : const Icon(
+                        Icons.radio_button_unchecked_outlined,
+                        color: Colors.grey,
+                      ),
               ),
             ),
             Expanded(
@@ -404,17 +440,81 @@ class _TasksViewState extends State<TasksView> {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(right: 12.0),
-              child:
-                  task.isReminder
-                      ? const Icon(
+            // Action buttons for completed tasks, archived tasks, or reminder indicator
+            if (isCompletedView) ...[
+              // Action buttons for completed tasks
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Undo button
+                  IconButton(
+                    icon: const Icon(Icons.undo, color: Colors.blue),
+                    onPressed: () => _taskService.toggleTaskCompletion(task.id!, false),
+                    tooltip: 'Mark as incomplete',
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    padding: const EdgeInsets.all(4),
+                  ),
+                  // Delete button
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    onPressed: () => _showConfirmationDialog(
+                      title: 'Delete Task',
+                      content: 'Are you sure you want to permanently delete this completed task?',
+                      confirmText: 'Delete',
+                      onConfirm: () => _taskService.deleteTaskPermanently(task.id!, isReminder: task.isReminder),
+                    ),
+                    tooltip: 'Delete permanently',
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    padding: const EdgeInsets.all(4),
+                  ),
+                ],
+              ),
+            ] else if (isArchivedView) ...[
+              // Action buttons for archived tasks
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Unarchive button
+                  IconButton(
+                    icon: const Icon(Icons.unarchive, color: Colors.green),
+                    onPressed: () => _showConfirmationDialog(
+                      title: 'Unarchive Task',
+                      content: 'Are you sure you want to restore this task to active tasks?',
+                      confirmText: 'Unarchive',
+                      onConfirm: () => _taskService.unarchiveTask(task.id!),
+                    ),
+                    tooltip: 'Unarchive task',
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    padding: const EdgeInsets.all(4),
+                  ),
+                  // Delete button
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    onPressed: () => _showConfirmationDialog(
+                      title: 'Delete Task',
+                      content: 'Are you sure you want to permanently delete this archived task?',
+                      confirmText: 'Delete',
+                      onConfirm: () => _taskService.deleteTaskPermanently(task.id!, isReminder: task.isReminder),
+                    ),
+                    tooltip: 'Delete permanently',
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    padding: const EdgeInsets.all(4),
+                  ),
+                ],
+              ),
+            ] else ...[
+              // Reminder indicator for non-completed tasks
+              Padding(
+                padding: const EdgeInsets.only(right: 12.0),
+                child: task.isReminder
+                    ? const Icon(
                         Icons.alarm,
                         size: 16.0,
                         color: Colors.blueAccent,
                       )
-                      : null,
-            ),
+                    : null,
+              ),
+            ],
           ],
         ),
       ),

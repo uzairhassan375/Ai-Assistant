@@ -14,7 +14,7 @@ class CalendarScreen extends StatefulWidget {
   State<CalendarScreen> createState() => _CalendarScreenState();
 }
 
-class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
+class _CalendarScreenState extends State<CalendarScreen> {
   CalendarFormat _calendarFormat = CalendarFormat.month;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
@@ -22,41 +22,9 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
   final TaskService _taskService = TaskService();
 
   @override
-  bool get wantKeepAlive => true; // Keep state alive when switching tabs
-
-  @override
   void initState() {
     super.initState();
     _selectedDay = _focusedDay;
-    _loadEvents();
-    // Add observer to detect when app comes back to foreground
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void dispose() {
-    // Remove observer when screen is disposed
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Refresh events when app comes back to foreground
-    if (state == AppLifecycleState.resumed) {
-      _loadEvents();
-    }
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Refresh calendar data when dependencies change (like when returning from other screens)
-    _loadEvents();
-  }
-
-  // Add this method to refresh manually
-  void refreshCalendar() {
     _loadEvents();
   }
 
@@ -64,46 +32,36 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    try {
-      // Use a simpler approach - get all user tasks and filter locally
-      // This avoids Firestore index requirements
-      final allTasks = await _taskService
-          .getTasksStream(userId: user.uid, isArchived: false)
-          .first;
-      
-      final Map<DateTime, List<Task>> newEvents = {};
-      
-      // Filter tasks for the current month and add to calendar
-      final startDate = DateTime(_focusedDay.year, _focusedDay.month, 1);
-      final endDate = DateTime(_focusedDay.year, _focusedDay.month + 1, 0);
-      
-      for (var task in allTasks) {
-        // Check if task falls within the current month
-        if (task.dueDate.isAfter(startDate.subtract(const Duration(days: 1))) &&
-            task.dueDate.isBefore(endDate.add(const Duration(days: 1)))) {
-          
-          final date = DateTime(
-            task.dueDate.year,
-            task.dueDate.month,
-            task.dueDate.day,
-          );
-          if (newEvents[date] == null) {
-            newEvents[date] = [];
-          }
-          newEvents[date]!.add(task);
-        }
-      }
+    // Get tasks for the current month
+    final startDate = DateTime(_focusedDay.year, _focusedDay.month, 1);
+    final endDate = DateTime(_focusedDay.year, _focusedDay.month + 1, 0);
 
-      setState(() {
-        _events = newEvents;
-      });
-    } catch (e) {
-      print('Error loading calendar events: $e');
-      // Fallback to empty events
-      setState(() {
-        _events = {};
-      });
+    // Get ALL tasks (active, completed, and archived) for comprehensive calendar view
+    final tasks = await _taskService
+        .getTasksByDateRange(
+          user.uid, 
+          startDate, 
+          endDate,
+          filter: TaskViewFilter.all, // Explicitly get all tasks
+        )
+        .first;
+
+    final Map<DateTime, List<Task>> newEvents = {};
+    for (var task in tasks) {
+      final date = DateTime(
+        task.dueDate.year,
+        task.dueDate.month,
+        task.dueDate.day,
+      );
+      if (newEvents[date] == null) {
+        newEvents[date] = [];
+      }
+      newEvents[date]!.add(task);
     }
+
+    setState(() {
+      _events = newEvents;
+    });
   }
 
   List<Task> _getTasksForDay(DateTime day) {
@@ -157,7 +115,6 @@ class _CalendarScreenState extends State<CalendarScreen> with WidgetsBindingObse
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // Required for AutomaticKeepAliveClientMixin
     return Scaffold(
       body: Column(
         children: [
