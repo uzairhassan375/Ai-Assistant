@@ -126,13 +126,15 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButton:
           _selectedIndex == 0
               ? FloatingActionButton(
-                onPressed:
-                    () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const CreateTaskScreen(),
-                      ),
+                onPressed: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CreateTaskScreen(),
                     ),
+                  );
+                  // The StreamBuilder will automatically refresh when new data is available
+                },
                 child: const Icon(Icons.add),
               )
               : null,

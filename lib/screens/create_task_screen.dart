@@ -1,17 +1,15 @@
 import 'package:aiassistant1/screens/subtask_screen.dart';
+import 'package:aiassistant1/screens/ai_task_creation_screen.dart';
+import 'package:aiassistant1/screens/voice_task_creation_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:aiassistant1/models/task.dart';
 import 'package:aiassistant1/services/task_services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'package:aiassistant1/services/notification_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:aiassistant1/models/subtask.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class CreateTaskScreen extends StatefulWidget {
   final Task? task;
@@ -26,7 +24,6 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _quickInputController = TextEditingController();
   List<Subtask> _subtasks = [];
   late DateTime _dueDate;
   bool _isLoading = false;
@@ -48,10 +45,6 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   // Voice recognition variables
   final SpeechToText _speechToText = SpeechToText();
   bool _speechEnabled = false;
-  String _wordsSpoken = "";
-  bool _isListening = false;
-  bool _isProcessing = false;
-  Map<String, dynamic>? _parsedResponse;
 
   @override
   void initState() {
@@ -82,265 +75,17 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   }
 
   void _startListening() async {
-    setState(() {
-      _isListening = true;
-      _wordsSpoken = "";
-    });
-    await _speechToText.listen(
-      onResult: _onSpeechResult,
-      listenFor: const Duration(seconds: 15),
-      pauseFor: const Duration(seconds: 5),
+    // Navigate to the new voice task creation screen
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const VoiceTaskCreationScreen(),
+      ),
     );
-    if (mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => _buildListeningDialog(),
-      );
-    }
-  }
-
-  void _stopListening() async {
-    setState(() {
-      _isListening = false;
-    });
-    await _speechToText.stop();
-    if (mounted) {
-      Navigator.of(context).pop(); // Close the dialog
-    }
-  }
-
-  void _onSpeechResult(SpeechRecognitionResult result) {
-    if (result.finalResult) {
-      setState(() {
-        _wordsSpoken = result.recognizedWords;
-        _isListening = false;
-        _isProcessing = true;
-      });
-      _getGeminiResponse(_wordsSpoken);
-    } else {
-      setState(() {
-        _wordsSpoken = result.recognizedWords;
-      });
-    }
-  }
-
-  String getCurrentDateFormatted() {
-    final now = DateTime.now();
-    final day = now.day.toString().padLeft(2, '0');
-    final month = now.month.toString().padLeft(2, '0');
-    final year = now.year.toString();
-    return "$day-$month-$year";
-  }
-
-  Future<void> _getGeminiResponse(String userSpeech) async {
-    final apiKey = dotenv.env['GEMINI_API_KEY'];
-    if (apiKey == null || apiKey.isEmpty) {
-      setState(() {
-        _isProcessing = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error: API key not found. Please check your .env file.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return;
-    }
     
-    const modelName = 'models/gemini-2.0-flash'; // or 'models/gemini-pro'
-
-final url = Uri.parse(
-  'https://generativelanguage.googleapis.com/v1/$modelName:generateContent?key=$apiKey',
-);
-
-
-    try {
-      final today = getCurrentDateFormatted();
-
-      final prompt = """
-You are a smart task extraction bot that helps users create tasks from their voice input.
-Today's date is: $today.
-
-From the user's speech, extract the following information:
-1. Task Title: A clear, concise title for the task
-2. Due Date: Extract the date in DD-MM-YYYY format. If no specific date is mentioned:
-   - If they say "today", use today's date
-   - If they say "tomorrow", use tomorrow's date
-   - If they say "next week", use 7 days from today
-   - If no date is mentioned, use "unknown"
-3. Due Time: Extract the time in HH:MM (24-hour) format. If no time is mentioned, use "00:00"
-4. Category: Choose the most appropriate category from:
-   - "academics" (for study, homework, research, etc.)
-   - "social" (for meetings, events, gatherings, etc.)
-   - "personal" (for personal tasks, hobbies, etc.)
-   - "health" (for exercise, medical appointments, etc.)
-   - "work" (for work-related tasks, projects, etc.)
-   - "finance" (for bills, payments, budgeting, etc.)
-   - "other" (if none of the above fit)
-
-⚡ IMPORTANT RULES:
-- The task title should be clear and specific
-- The due date must be in DD-MM-YYYY format
-- The due time must be in HH:MM format
-- The category must be one of the exact values listed above
-- If any information is unclear, make a reasonable assumption
-- Respond ONLY in pure JSON format like this:
-{
-  "task": "Complete project report",
-  "due_date": "28-09-2024",
-  "due_time": "17:30",
-  "category": "work"
-}
-
-User said: "$userSpeech"
-""";
-
-      final response = await http
-          .post(
-            url.replace(queryParameters: {'key': apiKey}),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              "contents": [
-                {
-                  "parts": [
-                    {"text": prompt},
-                  ],
-                },
-              ],
-              "generationConfig": {
-                "temperature":
-                    0.3, // Lower temperature for more consistent output
-                "maxOutputTokens": 300,
-              },
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = jsonDecode(response.body);
-        final aiResponse =
-            responseData['candidates']?[0]['content']['parts']?[0]['text']
-                ?.trim() ??
-            "{}";
-
-        try {
-         final cleanedResponse = aiResponse
-    .replaceAll('```json', '')
-    .replaceAll('```', '')
-    .trim();
-
-_parsedResponse = jsonDecode(cleanedResponse);
-
-          if (_parsedResponse != null) {
-            setState(() {
-              // Update title with proper capitalization
-              _titleController.text = _parsedResponse!['task']
-                  .toString()
-                  .split(' ')
-                  .map(
-                    (word) =>
-                        word.isEmpty
-                            ? ''
-                            : word[0].toUpperCase() +
-                                word.substring(1).toLowerCase(),
-                  )
-                  .join(' ');
-
-              int hour = 0;
-              int minute = 0;
-              if (_parsedResponse!['due_time'] != null &&
-                  _parsedResponse!['due_time'] != 'unknown') {
-                final timeParts = _parsedResponse!['due_time'].split(':');
-                if (timeParts.length == 2) {
-                  hour = int.tryParse(timeParts[0]) ?? 0;
-                  minute = int.tryParse(timeParts[1]) ?? 0;
-                }
-              }
-
-              // Update due date if not unknown
-              if (_parsedResponse!['due_date'] != 'unknown') {
-                try {
-                  final parts = _parsedResponse!['due_date'].split('-');
-                  if (parts.length == 3) {
-                    final day = int.parse(parts[0]);
-                    final month = int.parse(parts[1]);
-                    final year = int.parse(parts[2]);
-
-                    // Validate date
-                    if (day >= 1 &&
-                        day <= 31 &&
-                        month >= 1 &&
-                        month <= 12 &&
-                        year >= 2000 &&
-                        year <= 2100) {
-                      _dueDate = DateTime(year, month, day, hour, minute);
-                    } else {
-                      throw Exception('Invalid date values');
-                    }
-                  }
-                } catch (e) {
-                  // If date parsing fails, keep the current date
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Could not parse date, using current date'),
-                    ),
-                  );
-                }
-              }
-
-              // Update category with proper validation
-              String category = _parsedResponse!['category'].toLowerCase();
-              if (!_categories.contains(category)) {
-                category = 'other';
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Category not recognized, set to "other"'),
-                  ),
-                );
-              }
-              _selectedCategory = category;
-              _updateAppBarColor();
-            _saveTask();
-
-            });
-          }
-        } catch (e) {
-          _parsedResponse = {
-            "task": "Failed to parse response",
-            "due_date": "unknown",
-            "category": "other",
-          };
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error parsing response: ${e.toString()}')),
-          );
-        }
-
-        setState(() {
-          _isProcessing = false;
-        });
-        if (mounted) {
-          Navigator.of(
-            context,
-          ).pop(); // Close dialog when processing is complete
-        }
-      } else {
-        throw Exception(
-          "Gemini API Error: ${response.statusCode} - ${response.body}",
-        );
-      }
-    } catch (e) {
-      setState(() {
-        _isProcessing = false;
-      });
-      if (mounted) {
-        Navigator.of(context).pop(); // Close dialog on error
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
-      }
+    // If a task was created successfully, go back to home screen
+    if (result == true && mounted) {
+      Navigator.of(context).pop();
     }
   }
 
@@ -392,7 +137,6 @@ _parsedResponse = jsonDecode(cleanedResponse);
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
-    _quickInputController.dispose();
     super.dispose();
   }
 
@@ -546,31 +290,6 @@ _parsedResponse = jsonDecode(cleanedResponse);
     }
   }
 
-  void _processQuickInput(String text) {
-    if (text.isNotEmpty) {
-      _getGeminiResponse(text);
-      _quickInputController.clear();
-    }
-  }
-
-  Widget _buildListeningDialog() {
-    return AlertDialog(
-      title: const Text('Listening...'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: 16),
-          Text(_wordsSpoken),
-          if (_isProcessing) const Text('Processing...'),
-        ],
-      ),
-      actions: [
-        TextButton(onPressed: _stopListening, child: const Text('Stop')),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -578,10 +297,24 @@ _parsedResponse = jsonDecode(cleanedResponse);
         title: Text(widget.task == null ? 'Create New Task' : 'Edit Task'),
         backgroundColor: _appBarColor,
         actions: [
-          if (_speechEnabled && !_isListening && !_isProcessing)
+          if (widget.task == null) // Only show AI icon when creating new task
+            IconButton(
+              icon: const Icon(Icons.message),
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AITaskCreationScreen(),
+                  ),
+                );
+                if (result == true && mounted) {
+                  Navigator.pop(context, true); // Close this screen and refresh home
+                }
+              },
+              tooltip: 'AI Task Creator',
+            ),
+          if (_speechEnabled)
             IconButton(icon: const Icon(Icons.mic), onPressed: _startListening),
-          if (_isListening || _isProcessing)
-            IconButton(icon: const Icon(Icons.stop), onPressed: _stopListening),
           IconButton(
             icon: const Icon(Icons.save),
             onPressed: _isLoading ? null : _saveTask,
@@ -597,33 +330,6 @@ _parsedResponse = jsonDecode(cleanedResponse);
                   key: _formKey,
                   child: ListView(
                     children: <Widget>[
-                      // Quick task input field
-                      if (widget.task == null) // Only show for new tasks
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            TextFormField(
-                              controller: _quickInputController,
-                              decoration: InputDecoration(
-                                labelText: 'Quick Task Input',
-                                hintText:
-                                    'e.g., Add a task about visiting Japan next week',
-                                suffixIcon: IconButton(
-                                  icon: const Icon(Icons.send),
-                                  onPressed:
-                                      () => _processQuickInput(
-                                        _quickInputController.text,
-                                      ),
-                                ),
-                              ),
-                              onFieldSubmitted:
-                                  (value) => _processQuickInput(value),
-                            ),
-                            const SizedBox(height: 16),
-                            const Divider(),
-                            const SizedBox(height: 16),
-                          ],
-                        ),
                       TextFormField(
                         controller: _titleController,
                         decoration: const InputDecoration(labelText: 'Title'),
