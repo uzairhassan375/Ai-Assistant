@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'subtask.dart'; 
 
 enum TaskPriority { low, medium, high, urgent }
 
@@ -13,6 +14,7 @@ class Task {
   final TaskPriority priority;
   final bool isArchived;
   final bool isReminder;
+  final List<Subtask> subtasks;
 
   Task({
     this.id,
@@ -25,9 +27,9 @@ class Task {
     this.priority = TaskPriority.medium,
     this.isArchived = false,
     this.isReminder = false,
+    this.subtasks = const [], // default to empty list
   });
 
-  // Convert Task to Map
   Map<String, dynamic> toMap() {
     return {
       'title': title,
@@ -39,10 +41,10 @@ class Task {
       'priority': priority.toString().split('.').last,
       'isArchived': isArchived,
       'isReminder': isReminder,
+      'subtasks': subtasks.map((s) => s.toMap()).toList(),
     };
   }
 
-  // Create Task from Map
   factory Task.fromMap(String id, Map<String, dynamic> map) {
     return Task(
       id: id,
@@ -58,10 +60,13 @@ class Task {
       ),
       isArchived: map['isArchived'] ?? false,
       isReminder: map['isReminder'] ?? false,
+      subtasks: (map['subtasks'] as List<dynamic>?)
+              ?.map((s) => Subtask.fromMap(Map<String, dynamic>.from(s)))
+              .toList() ??
+          [],
     );
   }
 
-  // Create a copy of Task with some fields updated
   Task copyWith({
     String? id,
     String? title,
@@ -73,6 +78,7 @@ class Task {
     TaskPriority? priority,
     bool? isArchived,
     bool? isReminder,
+    List<Subtask>? subtasks,
   }) {
     return Task(
       id: id ?? this.id,
@@ -85,6 +91,7 @@ class Task {
       priority: priority ?? this.priority,
       isArchived: isArchived ?? this.isArchived,
       isReminder: isReminder ?? this.isReminder,
+      subtasks: subtasks ?? this.subtasks,
     );
   }
 }

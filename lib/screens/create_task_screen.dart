@@ -1,3 +1,4 @@
+import 'package:aiassistant1/screens/subtask_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:aiassistant1/models/task.dart';
 import 'package:aiassistant1/services/task_services.dart';
@@ -9,6 +10,8 @@ import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'package:aiassistant1/services/notification_service.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:aiassistant1/models/subtask.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class CreateTaskScreen extends StatefulWidget {
   final Task? task;
@@ -24,6 +27,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _quickInputController = TextEditingController();
+  List<Subtask> _subtasks = [];
   late DateTime _dueDate;
   bool _isLoading = false;
   String _selectedCategory = 'other';
@@ -53,12 +57,14 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   void initState() {
     super.initState();
     if (widget.task != null) {
+      
       _titleController.text = widget.task!.title;
       _descriptionController.text = widget.task!.description ?? '';
       _dueDate = widget.task!.dueDate;
       _selectedCategory = widget.task!.category;
       _selectedPriority = widget.task!.priority;
       _isReminder = widget.task!.isReminder;
+      _subtasks = List.from(widget.task!.subtasks); // Initialize with existing subtasks
       _updateAppBarColor();
     } else {
       _dueDate =
@@ -128,7 +134,22 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   }
 
   Future<void> _getGeminiResponse(String userSpeech) async {
-    const apiKey = 'AIzaSyA8FhBX1VI_Z-1AwOlt_UgsBu1j_Sv9pj4';
+    final apiKey = dotenv.env['GEMINI_API_KEY'];
+    if (apiKey == null || apiKey.isEmpty) {
+      setState(() {
+        _isProcessing = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error: API key not found. Please check your .env file.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+    
     const modelName = 'models/gemini-2.0-flash'; // or 'models/gemini-pro'
 
 final url = Uri.parse(
@@ -443,6 +464,7 @@ _parsedResponse = jsonDecode(cleanedResponse);
         isCompleted: widget.task?.isCompleted ?? false,
         userId: user.uid,
         category: _selectedCategory,
+        subtasks: _subtasks,
         priority: _selectedPriority,
         isArchived: widget.task?.isArchived ?? false,
         isReminder: _isReminder,
@@ -686,6 +708,55 @@ _parsedResponse = jsonDecode(cleanedResponse);
                           }
                         },
                       ),
+
+if (widget.task != null &&
+    widget.task!.subtasks.isNotEmpty) ...[
+  const SizedBox(height: 20),
+  const Text(
+    'Subtasks',
+    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+  ),
+  const SizedBox(height: 8),
+  ...widget.task!.subtasks.map((subtask) => Card(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        child: ListTile(
+          leading: const Icon(Icons.subdirectory_arrow_right),
+          title: Text(subtask.title),
+          subtitle: Text(
+            '${subtask.description}\nDue: ${DateFormat('MMM dd, yyyy – HH:mm').format(subtask.deadline)}',
+            style: const TextStyle(fontSize: 12),
+          ),
+        ),
+      )),
+],
+
+
+                      const SizedBox(height: 16),
+                      if (widget.task == null) // Only show when creating new task
+                        ElevatedButton.icon(
+  icon: const Icon(Icons.playlist_add),
+  label: const Text('Add Subtasks'),
+  onPressed: () async {
+    bool isEditMode = widget.task != null;
+  final result = await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => SubtaskScreen(
+        existingSubtasks: _subtasks,
+        isEditMode: isEditMode,
+      ),
+    ),
+  );
+
+  if (result != null && result is List<Subtask>) {
+    setState(() {
+      _subtasks = result;
+    });
+  }
+},
+
+),
+
                     ],
                   ),
                 ),

@@ -7,9 +7,11 @@ import 'package:flutter/material.dart';
 import 'package:aiassistant1/services/notification_service.dart';
 import 'package:aiassistant1/services/settings_service.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await NotificationService().init();
   runApp(
