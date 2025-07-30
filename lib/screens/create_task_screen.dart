@@ -134,7 +134,6 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   }
 
   Future<void> _getGeminiResponse(String userSpeech) async {
-<<<<<<< HEAD
     final apiKey = dotenv.env['GEMINI_API_KEY'];
     if (apiKey == null || apiKey.isEmpty) {
       setState(() {
@@ -151,9 +150,6 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
       return;
     }
     
-=======
-    const apiKey = 'Your_API_Key';
->>>>>>> b6ab008e7a7b31caa1b4b11c8aceaeb9eb07ba4f
     const modelName = 'models/gemini-2.0-flash'; // or 'models/gemini-pro'
 
 final url = Uri.parse(
