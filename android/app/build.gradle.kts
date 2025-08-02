@@ -31,9 +31,24 @@ android {
 
     buildTypes {
         release {
+            // Enable ProGuard/R8 for release builds but with less aggressive settings
+            isMinifyEnabled = true
+            isShrinkResources = false // Disable resource shrinking to avoid issues
+            proguardFiles(
+                getDefaultProguardFile("proguard-android.txt"), // Use less aggressive optimization
+                "proguard-rules.pro"
+            )
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+        }
+        debug {
+            // Disable ProGuard for debug builds
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }
@@ -44,4 +59,5 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    implementation("com.google.code.gson:gson:2.10.1")
 }

@@ -209,6 +209,29 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
       try {
         String? taskId = widget.task?.id;
         if (_isReminder) {
+          // Check if the due date is in the past (current time, not just date)
+          if (_dueDate.isBefore(DateTime.now())) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Cannot set reminder for past date/time. Please select a future time.'),
+                  backgroundColor: Colors.orange,
+                  behavior: SnackBarBehavior.fixed,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                    ),
+                  ),
+                ),
+              );
+            }
+            setState(() {
+              _isLoading = false;
+            });
+            return;
+          }
+          
           var status = await Permission.scheduleExactAlarm.status;
           if (status.isDenied) {
             final result = await Permission.scheduleExactAlarm.request();
@@ -244,6 +267,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
               title: 'Task Reminder',
               body: task.title,
               dueDate: task.dueDate,
+              taskId: taskId,
             );
           }
           if (context.mounted) {
@@ -270,6 +294,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                 title: 'Task Reminder',
                 body: task.title,
                 dueDate: task.dueDate,
+                taskId: taskId,
               );
             } else {
               await NotificationService().cancelNotification(taskId.hashCode);

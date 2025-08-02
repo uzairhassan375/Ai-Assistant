@@ -24,12 +24,19 @@ void main() async {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+  
+  // Global navigator key for notifications
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
+    // Set the navigator key for notification service
+    NotificationService.navigatorKey = navigatorKey;
+    
     return Consumer<SettingsService>(
       builder: (context, settings, child) {
         return MaterialApp(
+          navigatorKey: navigatorKey, // Add this line
           debugShowCheckedModeBanner: false,
           title: 'HelpMe',
           themeMode: settings.themeMode,
