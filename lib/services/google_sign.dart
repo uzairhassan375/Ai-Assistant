@@ -60,6 +60,13 @@ Future<void> Google_login_signup(BuildContext context) async {
               : 'Welcome back, ${user?.displayName ?? ''}!',
         ),
         duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.fixed,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+          ),
+        ),
       ),
     );
   } on FirebaseAuthException catch (e) {
@@ -70,14 +77,32 @@ Future<void> Google_login_signup(BuildContext context) async {
     Navigator.pop(context);
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(e.message ?? 'Authentication failed')),
+      SnackBar(
+        content: Text(e.message ?? 'Authentication failed'),
+        behavior: SnackBarBehavior.fixed,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+          ),
+        ),
+      ),
     );
   } catch (e) {
     Navigator.pop(context);
     debugPrint('Google sign-in error: $e');
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Sign-in failed. Please try again.')),
+      const SnackBar(
+        content: Text('Sign-in failed. Please try again.'),
+        behavior: SnackBarBehavior.fixed,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -94,6 +119,15 @@ void _handleFirebaseAuthError(BuildContext context, String code) {
   };
 
   ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    SnackBar(
+      content: Text(message),
+      behavior: SnackBarBehavior.fixed,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(16),
+          topRight: Radius.circular(16),
+        ),
+      ),
+    ),
   );
 }

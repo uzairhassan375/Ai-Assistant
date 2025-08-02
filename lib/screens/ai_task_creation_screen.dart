@@ -5,12 +5,20 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:aiassistant1/models/task.dart';
-import 'package:aiassistant1/services/task_services.dart';
 
 class AITaskCreationScreen extends StatefulWidget {
-  const AITaskCreationScreen({super.key});
+  final String? existingTitle;
+  final String? existingCategory;
+  final DateTime? existingDueDate;
+  final String? existingDescription;
+  
+  const AITaskCreationScreen({
+    super.key,
+    this.existingTitle,
+    this.existingCategory,
+    this.existingDueDate,
+    this.existingDescription,
+  });
 
   @override
   State<AITaskCreationScreen> createState() => _AITaskCreationScreenState();
@@ -85,6 +93,13 @@ class _AITaskCreationScreenState extends State<AITaskCreationScreen> {
           const SnackBar(
             content: Text('Error: API key not found. Please check your .env file.'),
             backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.fixed,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
           ),
         );
       }
@@ -106,13 +121,14 @@ Today's date is: $today.
 
 From the user's speech, extract the following information:
 1. Task Title: A clear, concise title for the task
-2. Due Date: Extract the date in DD-MM-YYYY format. If no specific date is mentioned:
+2. Description: A brief description or additional details about the task (can be empty if not mentioned)
+3. Due Date: Extract the date in DD-MM-YYYY format. If no specific date is mentioned:
    - If they say "today", use today's date
    - If they say "tomorrow", use tomorrow's date
    - If they say "next week", use 7 days from today
    - If no date is mentioned, use "unknown"
-3. Due Time: Extract the time in HH:MM (24-hour) format. If no time is mentioned, use "00:00"
-4. Category: Choose the most appropriate category from:
+4. Due Time: Extract the time in HH:MM (24-hour) format. If no time is mentioned, use "00:00"
+5. Category: Choose the most appropriate category from:
    - "academics" (for study, homework, research, etc.)
    - "social" (for meetings, events, gatherings, etc.)
    - "personal" (for personal tasks, hobbies, etc.)
@@ -120,19 +136,28 @@ From the user's speech, extract the following information:
    - "work" (for work-related tasks, projects, etc.)
    - "finance" (for bills, payments, budgeting, etc.)
    - "other" (if none of the above fit)
+6. Priority: Determine the urgency level from:
+   - "low" (for non-urgent tasks)
+   - "medium" (for normal tasks - default)
+   - "high" (for important/urgent tasks)
+   - "urgent" (for critical/immediate tasks)
 
 ⚡ IMPORTANT RULES:
 - The task title should be clear and specific
+- Description can be empty string if no details are mentioned
 - The due date must be in DD-MM-YYYY format
 - The due time must be in HH:MM format
 - The category must be one of the exact values listed above
+- The priority must be one of the exact values listed above
 - If any information is unclear, make a reasonable assumption
 - Respond ONLY in pure JSON format like this:
 {
   "task": "Complete project report",
+  "description": "Finish the quarterly report with charts and analysis",
   "due_date": "28-09-2024",
   "due_time": "17:30",
-  "category": "work"
+  "category": "work",
+  "priority": "high"
 }
 
 User said: "$userSpeech"
@@ -197,7 +222,16 @@ User said: "$userSpeech"
           };
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error parsing response: ${e.toString()}')),
+              SnackBar(
+                content: Text('Error parsing response: ${e.toString()}'),
+                behavior: SnackBarBehavior.fixed,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
+                  ),
+                ),
+              ),
             );
           }
         }
@@ -222,7 +256,16 @@ User said: "$userSpeech"
         // Don't close the screen on error - show error and let user try again
         // Navigator.of(context).pop(); // Close dialog on error
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            behavior: SnackBarBehavior.fixed,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+          ),
         );
       }
     }
@@ -250,25 +293,9 @@ User said: "$userSpeech"
       _isSaving = true;
     });
 
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      print('❌ User not authenticated'); // Debug log
-      setState(() {
-        _isSaving = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('User not authenticated')),
-        );
-      }
-      return;
-    }
-
-    print('👤 User authenticated: ${user.uid}'); // Debug log
-
     try {
       // Parse date and time
-      DateTime dueDate = DateTime.now().add(const Duration(days: 1));
+      DateTime? parsedDueDate;
       
       if (_parsedResponse!['due_date'] != 'unknown') {
         try {
@@ -291,53 +318,69 @@ User said: "$userSpeech"
 
             // Validate date
             if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 2000 && year <= 2100) {
-              dueDate = DateTime(year, month, day, hour, minute);
+              parsedDueDate = DateTime(year, month, day, hour, minute);
             }
           }
         } catch (e) {
-          // Use default date if parsing fails
+          print('❌ Error parsing date: $e');
         }
       }
 
-      final taskService = TaskService();
-      
       // Determine if this is a reminder based on the original user input
       final isReminderTask = _originalUserInput.toLowerCase().contains('remind') || 
                             _originalUserInput.toLowerCase().contains('reminder');
-      
-      final task = Task(
-        title: _parsedResponse!['task'].toString(), // AI response uses 'task', but Task model uses 'title'
-        description: null, // Add description field
-        dueDate: dueDate,
-        userId: user.uid,
-        category: _parsedResponse!['category'],
-        priority: TaskPriority.medium,
-        isReminder: isReminderTask, // Set based on user input
-        isCompleted: false, // Add isCompleted field
-        isArchived: false, // Add isArchived field
-        subtasks: [], // Add subtasks field
-      );
 
-      print('🚀 About to create task: ${task.title}'); // Debug log
-      print('   Original input: "$_originalUserInput"'); // Debug log
-      print('   Task details: title="${task.title}", category="${task.category}", dueDate=${task.dueDate}'); // Debug log
-      print('   Task flags: isArchived=${task.isArchived}, isCompleted=${task.isCompleted}, isReminder=${task.isReminder}'); // Debug log
+      // Create a data map to return to the Create Task screen
+      final taskData = {
+        'title': widget.existingTitle?.isNotEmpty == true 
+            ? widget.existingTitle 
+            : _parsedResponse!['task'].toString(),
+        'category': widget.existingCategory?.isNotEmpty == true && widget.existingCategory != 'other'
+            ? widget.existingCategory
+            : _parsedResponse!['category'],
+        'due_date': widget.existingDueDate != null 
+            ? widget.existingDueDate 
+            : parsedDueDate,
+        'is_reminder': isReminderTask,
+        'description': widget.existingDescription?.isNotEmpty == true 
+            ? widget.existingDescription 
+            : (_parsedResponse!['description']?.toString().isNotEmpty == true 
+                ? _parsedResponse!['description'].toString() 
+                : null),
+        'priority': _parsedResponse!['priority'] ?? 'medium',
+      };
 
-      final createdTask = await taskService.createTask(task);
-      print('✅ AI Task created successfully: ${createdTask.title} with ID: ${createdTask.id}'); // Debug log
-      print('   Task details: isArchived=${createdTask.isArchived}, isCompleted=${createdTask.isCompleted}, isReminder=${createdTask.isReminder}'); // Debug log
+      print('🚀 Returning task data: $taskData'); // Debug log
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Task created successfully!')),
+          const SnackBar(
+            content: Text('Task data ready!'),
+            behavior: SnackBarBehavior.fixed,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+          ),
         );
-        Navigator.of(context).pop(true); // Return true to indicate success
+        Navigator.of(context).pop(taskData); // Return parsed data instead of creating task
       }
     } catch (e) {
-      print('❌ Error saving task: $e'); // Debug log
+      print('❌ Error processing task data: $e'); // Debug log
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save task: $e')),
+          SnackBar(
+            content: Text('Failed to process task data: $e'),
+            behavior: SnackBarBehavior.fixed,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+          ),
         );
       }
     } finally {
@@ -371,9 +414,12 @@ User said: "$userSpeech"
             ),
             const SizedBox(height: 16),
             _buildPreviewItem('Title', _parsedResponse!['task'] ?? 'Unknown'),
+            if (_parsedResponse!['description'] != null && _parsedResponse!['description'].toString().isNotEmpty)
+              _buildPreviewItem('Description', _parsedResponse!['description']),
             _buildPreviewItem('Due Date', _parsedResponse!['due_date'] ?? 'Unknown'),
             _buildPreviewItem('Time', _parsedResponse!['due_time'] ?? '00:00'),
             _buildPreviewItem('Category', _parsedResponse!['category'] ?? 'other'),
+            _buildPreviewItem('Priority', _parsedResponse!['priority'] ?? 'medium'),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -387,7 +433,7 @@ User said: "$userSpeech"
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.save),
-                    label: Text(_isSaving ? 'Saving...' : 'Save Task'),
+                    label: Text(_isSaving ? 'Processing...' : 'Use This Data'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,

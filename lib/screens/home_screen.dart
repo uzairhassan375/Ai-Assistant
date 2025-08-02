@@ -4,8 +4,11 @@ import 'package:aiassistant1/services/task_services.dart';
 import 'package:aiassistant1/screens/create_task_screen.dart';
 import 'package:aiassistant1/screens/calendar_screen.dart';
 import 'package:aiassistant1/screens/settings_screen.dart';
+import 'package:aiassistant1/screens/ai_task_creation_screen.dart';
+import 'package:aiassistant1/screens/voice_task_creation_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 
 enum TaskFilter { all, tasks, reminders, completed, archived }
 
@@ -132,21 +135,96 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      floatingActionButton:
-          _selectedIndex == 0
-              ? FloatingActionButton(
-                onPressed: () async {
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const CreateTaskScreen(),
-                    ),
-                  );
-                  // The StreamBuilder will automatically refresh when new data is available
-                },
-                child: const Icon(Icons.add),
-              )
-              : null,
+      floatingActionButton: _selectedIndex == 0
+          ? SpeedDial(
+              icon: Icons.add,
+              activeIcon: Icons.close,
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.white,
+              spacing: 16,
+              spaceBetweenChildren: 16,
+              overlayColor: Colors.black,
+              overlayOpacity: 0.5,
+              elevation: 8,
+              animationCurve: Curves.elasticInOut,
+              animationDuration: const Duration(milliseconds: 300),
+              children: [
+                SpeedDialChild(
+                  child: const Icon(Icons.edit),
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  label: 'Manual Task',
+                  labelStyle: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CreateTaskScreen(),
+                      ),
+                    );
+                  },
+                ),
+                SpeedDialChild(
+                  child: const Icon(Icons.message),
+                  backgroundColor: Colors.purple,
+                  foregroundColor: Colors.white,
+                  label: 'Quick AI Task',
+                  labelStyle: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  onTap: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AITaskCreationScreen(),
+                      ),
+                    );
+                    
+                    // Handle returned task data from AI creation
+                    if (result != null && result is Map<String, dynamic>) {
+                      // Navigate to CreateTaskScreen with the AI-generated data
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CreateTaskScreen(
+                            aiGeneratedData: result,
+                          ),
+                        ),
+                      );
+                      
+                      // If task was created successfully, the StreamBuilder will refresh automatically
+                    }
+                  },
+                ),
+                SpeedDialChild(
+                  child: const Icon(Icons.mic),
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  label: 'Voice Task',
+                  labelStyle: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  onTap: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const VoiceTaskCreationScreen(),
+                      ),
+                    );
+                    // Refresh if task was created
+                    if (result == true) {
+                      // The StreamBuilder will automatically refresh
+                    }
+                  },
+                ),
+              ],
+            )
+          : null,
     );
   }
 }
@@ -163,6 +241,148 @@ class TasksView extends StatefulWidget {
 class _TasksViewState extends State<TasksView> {
   final TaskService _taskService = TaskService();
 
+  void _toggleTaskCompletion(BuildContext context, Task task) async {
+    final newCompletionStatus = !task.isCompleted;
+    final taskTitle = task.title;
+
+    // Update the task immediately for responsive UI
+    try {
+      await _taskService.updateTask(
+        task.copyWith(isCompleted: newCompletionStatus),
+      );
+
+      if (!context.mounted) return;
+
+      // Show appropriate snackbar message
+      final snackBar = SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              newCompletionStatus ? Icons.check_circle : Icons.radio_button_unchecked,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                newCompletionStatus 
+                  ? 'Task marked as completed' 
+                  : 'Task marked as incomplete',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: newCompletionStatus ? Colors.green[600] : Colors.orange[600],
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.fixed,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+          ),
+        ),
+        action: SnackBarAction(
+          label: 'UNDO',
+          textColor: Colors.white,
+          onPressed: () async {
+            // Undo the completion toggle
+            try {
+              await _taskService.updateTask(
+                task.copyWith(isCompleted: task.isCompleted),
+              );
+              
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const Icon(
+                          Icons.undo,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Changes undone for "$taskTitle"',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    backgroundColor: Colors.blue[600],
+                    duration: const Duration(seconds: 2),
+                    behavior: SnackBarBehavior.fixed,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
+                      ),
+                    ),
+                  ),
+                );
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Failed to undo: $e'),
+                    backgroundColor: Colors.red,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            }
+          },
+        ),
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(
+                  Icons.error,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Failed to update task: $e',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red[600],
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.fixed,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -177,23 +397,67 @@ class _TasksViewState extends State<TasksView> {
       isReminder = true;
     }
 
-    // Use different stream for completed tasks
-    Stream<List<Task>> taskStream;
+    // For completed tasks, we need to use the getTasks method instead of getTasksStream
     if (isCompletedView) {
-      taskStream = _taskService.getCompletedTasksStream(
-        userId: user.uid,
-        isReminder: isReminder,
-      );
-    } else {
-      taskStream = _taskService.getTasksStream(
-        userId: user.uid,
-        isArchived: isArchivedView,
-        isReminder: isReminder,
+      return StreamBuilder<List<Task>>(
+        stream: _taskService.getTasks(
+          user.uid,
+          filter: TaskViewFilter.completed,
+        ),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            final error = snapshot.error;
+            debugPrint('🔥 Firestore Stream Error: $error');
+            return Center(child: Text('Error: $error'));
+          }
+
+          final tasks = snapshot.data ?? [];
+          if (tasks.isEmpty) {
+            return const Center(child: Text('No completed tasks yet.'));
+          }
+
+          final groupedTasks = _groupTasks(tasks);
+
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            itemCount: groupedTasks.length,
+            itemBuilder: (context, index) {
+              final date = groupedTasks.keys.elementAt(index);
+              final tasksForDate = groupedTasks[date]!;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                    child: Text(
+                      DateFormat('EEEE, MMM d, yyyy').format(date),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16.0,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ),
+                  ...tasksForDate.map(
+                    (task) => _buildTaskListItem(context, task),
+                  ),
+                ],
+              );
+            },
+          );
+        },
       );
     }
 
     return StreamBuilder<List<Task>>(
-      stream: taskStream,
+      stream: _taskService.getTasksStream(
+        userId: user.uid,
+        isArchived: isArchivedView,
+        isReminder: isReminder,
+      ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -324,36 +588,33 @@ class _TasksViewState extends State<TasksView> {
   Widget _buildTaskListItem(BuildContext context, Task task) {
     bool isArchivedView = widget.filter == TaskFilter.archived;
     bool isCompletedView = widget.filter == TaskFilter.completed;
-    
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
       margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
       elevation: 1.5,
       child: InkWell(
         borderRadius: BorderRadius.circular(8.0),
-        onTap: isCompletedView 
-          ? null // Disable editing for completed tasks
-          : () => Navigator.push(
+        onTap:
+            () => Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => CreateTaskScreen(task: task),
               ),
             ),
         onLongPress: () {
-          if (isCompletedView) {
-            // For completed tasks, show delete option
-            _showConfirmationDialog(
-              title: 'Delete Task',
-              content: 'Are you sure you want to permanently delete this completed task?',
-              confirmText: 'Delete',
-              onConfirm: () => _taskService.deleteTaskPermanently(task.id!, isReminder: task.isReminder),
-            );
-          } else if (isArchivedView) {
+          if (isArchivedView) {
             _showConfirmationDialog(
               title: 'Delete Task',
               content: 'Are you sure you want to permanently delete this task?',
               confirmText: 'Delete',
-              onConfirm: () => _taskService.deleteTaskPermanently(task.id!, isReminder: task.isReminder),
+              onConfirm: () => _taskService.deleteTaskPermanently(task.id!),
+            );
+          } else if (isCompletedView) {
+            _showConfirmationDialog(
+              title: 'Archive Task',
+              content: 'Are you sure you want to archive this completed task?',
+              confirmText: 'Archive',
+              onConfirm: () => _taskService.archiveTask(task.id!),
             );
           } else {
             _showConfirmationDialog(
@@ -378,28 +639,22 @@ class _TasksViewState extends State<TasksView> {
               ),
             ),
             const SizedBox(width: 10),
-            // Checkbox/completion indicator
             InkWell(
               onTap: () {
-                if (isCompletedView) {
-                  // Undo completion (mark as incomplete)
-                  _taskService.toggleTaskCompletion(task.id!, false);
-                } else if (!isArchivedView) {
-                  // Toggle completion for active tasks
-                  _taskService.updateTask(
-                    task.copyWith(isCompleted: !task.isCompleted),
-                  );
+                if (!isArchivedView) {
+                  _toggleTaskCompletion(context, task);
                 }
               },
               customBorder: const CircleBorder(),
               child: Padding(
                 padding: const EdgeInsets.all(4.0),
-                child: task.isCompleted
-                    ? Icon(Icons.check_circle, color: Colors.green.shade600)
-                    : const Icon(
-                        Icons.radio_button_unchecked_outlined,
-                        color: Colors.grey,
-                      ),
+                child:
+                    task.isCompleted
+                        ? Icon(Icons.check_circle, color: Colors.green.shade600)
+                        : const Icon(
+                          Icons.radio_button_unchecked_outlined,
+                          color: Colors.grey,
+                        ),
               ),
             ),
             Expanded(
@@ -440,84 +695,312 @@ class _TasksViewState extends State<TasksView> {
                 ),
               ),
             ),
-            // Action buttons for completed tasks, archived tasks, or reminder indicator
-            if (isCompletedView) ...[
-              // Action buttons for completed tasks
-              Row(
+            Padding(
+              padding: const EdgeInsets.only(right: 12.0),
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Undo button
-                  IconButton(
-                    icon: const Icon(Icons.undo, color: Colors.blue),
-                    onPressed: () => _taskService.toggleTaskCompletion(task.id!, false),
-                    tooltip: 'Mark as incomplete',
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                    padding: const EdgeInsets.all(4),
-                  ),
-                  // Delete button
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _showConfirmationDialog(
-                      title: 'Delete Task',
-                      content: 'Are you sure you want to permanently delete this completed task?',
-                      confirmText: 'Delete',
-                      onConfirm: () => _taskService.deleteTaskPermanently(task.id!, isReminder: task.isReminder),
+                  if (task.isReminder && !isCompletedView && !isArchivedView)
+                    const Icon(
+                      Icons.alarm,
+                      size: 16.0,
+                      color: Colors.blueAccent,
                     ),
-                    tooltip: 'Delete permanently',
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                    padding: const EdgeInsets.all(4),
-                  ),
+                  if (isCompletedView || isArchivedView) 
+                    _buildTaskActions(task, isCompletedView, isArchivedView),
                 ],
               ),
-            ] else if (isArchivedView) ...[
-              // Action buttons for archived tasks
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Unarchive button
-                  IconButton(
-                    icon: const Icon(Icons.unarchive, color: Colors.green),
-                    onPressed: () => _showConfirmationDialog(
-                      title: 'Unarchive Task',
-                      content: 'Are you sure you want to restore this task to active tasks?',
-                      confirmText: 'Unarchive',
-                      onConfirm: () => _taskService.unarchiveTask(task.id!),
-                    ),
-                    tooltip: 'Unarchive task',
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                    padding: const EdgeInsets.all(4),
-                  ),
-                  // Delete button
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _showConfirmationDialog(
-                      title: 'Delete Task',
-                      content: 'Are you sure you want to permanently delete this archived task?',
-                      confirmText: 'Delete',
-                      onConfirm: () => _taskService.deleteTaskPermanently(task.id!, isReminder: task.isReminder),
-                    ),
-                    tooltip: 'Delete permanently',
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                    padding: const EdgeInsets.all(4),
-                  ),
-                ],
-              ),
-            ] else ...[
-              // Reminder indicator for non-completed tasks
-              Padding(
-                padding: const EdgeInsets.only(right: 12.0),
-                child: task.isReminder
-                    ? const Icon(
-                        Icons.alarm,
-                        size: 16.0,
-                        color: Colors.blueAccent,
-                      )
-                    : null,
-              ),
-            ],
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildTaskActions(Task task, bool isCompletedView, bool isArchivedView) {
+    if (isCompletedView) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Undo button - mark as incomplete
+          InkWell(
+            onTap: () async {
+              try {
+                await _taskService.updateTask(
+                  task.copyWith(isCompleted: false),
+                );
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          const Icon(Icons.undo, color: Colors.white, size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Task moved back to active',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: Colors.blue[600],
+                      duration: const Duration(seconds: 3),
+                      behavior: SnackBarBehavior.fixed,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          topRight: Radius.circular(16),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to update task: $e'),
+                      backgroundColor: Colors.red,
+                      behavior: SnackBarBehavior.fixed,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          topRight: Radius.circular(16),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+              }
+            },
+            customBorder: const CircleBorder(),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              child: Icon(
+                Icons.undo,
+                size: 20,
+                color: Colors.blue[600],
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          // Delete button - permanent delete
+          InkWell(
+            onTap: () {
+              _showConfirmationDialog(
+                title: 'Delete Task',
+                content: 'Are you sure you want to permanently delete this completed task? This action cannot be undone.',
+                confirmText: 'Delete',
+                onConfirm: () async {
+                  try {
+                    await _taskService.deleteTaskPermanently(task.id!);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              const Icon(Icons.check, color: Colors.white, size: 20),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Task deleted permanently',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          backgroundColor: Colors.red[600],
+                          duration: const Duration(seconds: 3),
+                          behavior: SnackBarBehavior.fixed,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(16),
+                              topRight: Radius.circular(16),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Failed to delete task: $e'),
+                          backgroundColor: Colors.red,
+                          behavior: SnackBarBehavior.fixed,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(16),
+                              topRight: Radius.circular(16),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                  }
+                },
+              );
+            },
+            customBorder: const CircleBorder(),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              child: Icon(
+                Icons.delete_forever,
+                size: 20,
+                color: Colors.red[600],
+              ),
+            ),
+          ),
+        ],
+      );
+    } else if (isArchivedView) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Unarchive button
+          InkWell(
+            onTap: () async {
+              try {
+                await _taskService.unarchiveTask(task.id!);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          const Icon(Icons.unarchive, color: Colors.white, size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Task unarchived successfully',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: Colors.green[600],
+                      duration: const Duration(seconds: 3),
+                      behavior: SnackBarBehavior.fixed,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          topRight: Radius.circular(16),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to unarchive task: $e'),
+                      backgroundColor: Colors.red,
+                      behavior: SnackBarBehavior.fixed,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          topRight: Radius.circular(16),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+              }
+            },
+            customBorder: const CircleBorder(),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              child: Icon(
+                Icons.unarchive,
+                size: 20,
+                color: Colors.green[600],
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          // Delete button - permanent delete
+          InkWell(
+            onTap: () {
+              _showConfirmationDialog(
+                title: 'Delete Task',
+                content: 'Are you sure you want to permanently delete this archived task? This action cannot be undone.',
+                confirmText: 'Delete',
+                onConfirm: () async {
+                  try {
+                    await _taskService.deleteTaskPermanently(task.id!);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              const Icon(Icons.check, color: Colors.white, size: 20),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Task deleted permanently',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          backgroundColor: Colors.red[600],
+                          duration: const Duration(seconds: 3),
+                          behavior: SnackBarBehavior.fixed,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(16),
+                              topRight: Radius.circular(16),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Failed to delete task: $e'),
+                          backgroundColor: Colors.red,
+                          behavior: SnackBarBehavior.fixed,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(16),
+                              topRight: Radius.circular(16),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                  }
+                },
+              );
+            },
+            customBorder: const CircleBorder(),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              child: Icon(
+                Icons.delete_forever,
+                size: 20,
+                color: Colors.red[600],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    return const SizedBox.shrink();
   }
 }

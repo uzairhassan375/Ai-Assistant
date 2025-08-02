@@ -1,11 +1,8 @@
 import 'package:aiassistant1/screens/subtask_screen.dart';
-import 'package:aiassistant1/screens/ai_task_creation_screen.dart';
-import 'package:aiassistant1/screens/voice_task_creation_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:aiassistant1/models/task.dart';
 import 'package:aiassistant1/services/task_services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:speech_to_text/speech_to_text.dart';
 import 'package:intl/intl.dart';
 import 'package:aiassistant1/services/notification_service.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -14,7 +11,14 @@ import 'package:aiassistant1/models/subtask.dart';
 class CreateTaskScreen extends StatefulWidget {
   final Task? task;
   final DateTime? initialDate;
-  const CreateTaskScreen({super.key, this.task, this.initialDate});
+  final Map<String, dynamic>? aiGeneratedData;
+  
+  const CreateTaskScreen({
+    super.key, 
+    this.task, 
+    this.initialDate,
+    this.aiGeneratedData,
+  });
 
   @override
   State<CreateTaskScreen> createState() => _CreateTaskScreenState();
@@ -42,15 +46,13 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
     'other',
   ];
 
-  // Voice recognition variables
-  final SpeechToText _speechToText = SpeechToText();
-  bool _speechEnabled = false;
+  // Voice recognition variables - removed as functionality moved to Speed Dial
 
   @override
   void initState() {
     super.initState();
     if (widget.task != null) {
-      
+      // Editing existing task
       _titleController.text = widget.task!.title;
       _descriptionController.text = widget.task!.description ?? '';
       _dueDate = widget.task!.dueDate;
@@ -59,34 +61,24 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
       _isReminder = widget.task!.isReminder;
       _subtasks = List.from(widget.task!.subtasks); // Initialize with existing subtasks
       _updateAppBarColor();
+    } else if (widget.aiGeneratedData != null) {
+      // Creating new task with AI-generated data
+      final aiData = widget.aiGeneratedData!;
+      _titleController.text = aiData['title'] ?? '';
+      _descriptionController.text = aiData['description'] ?? '';
+      _dueDate = aiData['due_date'] ?? DateTime.now().add(const Duration(days: 1));
+      _selectedCategory = aiData['category'] ?? 'other';
+      _selectedPriority = _stringToPriority(aiData['priority']) ?? TaskPriority.medium;
+      _isReminder = aiData['is_reminder'] ?? false;
+      _updateAppBarColor();
     } else {
-      _dueDate =
-          widget.initialDate ?? DateTime.now().add(const Duration(days: 1));
+      // Creating new task without AI data
+      _dueDate = widget.initialDate ?? DateTime.now().add(const Duration(days: 1));
       // Initialize time to midnight for new tasks if no initialDate is provided with time
       _dueDate = DateTime(_dueDate.year, _dueDate.month, _dueDate.day, 0, 0);
       _updateAppBarColor();
     }
-    initSpeech();
-  }
-
-  void initSpeech() async {
-    _speechEnabled = await _speechToText.initialize();
-    setState(() {});
-  }
-
-  void _startListening() async {
-    // Navigate to the new voice task creation screen
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const VoiceTaskCreationScreen(),
-      ),
-    );
-    
-    // If a task was created successfully, go back to home screen
-    if (result == true && mounted) {
-      Navigator.of(context).pop();
-    }
+    // Speech functionality removed - now available through Speed Dial on home screen
   }
 
   void _updateAppBarColor() {
@@ -225,6 +217,13 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Permission denied. Reminder cannot be set.'),
+                    behavior: SnackBarBehavior.fixed,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
+                      ),
+                    ),
                   ),
                 );
               }
@@ -249,7 +248,16 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
           }
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Task created successfully!')),
+              const SnackBar(
+                content: Text('Task created successfully!'),
+                behavior: SnackBarBehavior.fixed,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
+                  ),
+                ),
+              ),
             );
           }
         } else {
@@ -269,7 +277,16 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
           }
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Task updated successfully!')),
+              const SnackBar(
+                content: Text('Task updated successfully!'),
+                behavior: SnackBarBehavior.fixed,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
+                  ),
+                ),
+              ),
             );
           }
         }
@@ -280,7 +297,16 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
         if (context.mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text('Failed to save task: $e')));
+          ).showSnackBar(SnackBar(
+            content: Text('Failed to save task: $e'),
+            behavior: SnackBarBehavior.fixed,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+          ));
         }
       } finally {
         setState(() {
@@ -292,181 +318,635 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Scaffold(
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        title: Text(widget.task == null ? 'Create New Task' : 'Edit Task'),
-        backgroundColor: _appBarColor,
+        title: Text(
+          widget.task == null ? 'New Task' : 'Edit Task',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 18,
+            color: colorScheme.onSurface,
+          ),
+        ),
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
+        elevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          icon: Icon(Icons.close, size: 24, color: colorScheme.onSurface),
+          onPressed: () => Navigator.pop(context),
+        ),
         actions: [
-          if (widget.task == null) // Only show AI icon when creating new task
-            IconButton(
-              icon: const Icon(Icons.message),
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AITaskCreationScreen(),
-                  ),
-                );
-                if (result == true && mounted) {
-                  Navigator.pop(context, true); // Close this screen and refresh home
-                }
-              },
-              tooltip: 'AI Task Creator',
-            ),
-          if (_speechEnabled)
-            IconButton(icon: const Icon(Icons.mic), onPressed: _startListening),
-          IconButton(
-            icon: const Icon(Icons.save),
+          TextButton(
             onPressed: _isLoading ? null : _saveTask,
+            child: _isLoading
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(_appBarColor),
+                    ),
+                  )
+                : Text(
+                    widget.task == null ? 'Create' : 'Save',
+                    style: TextStyle(
+                      color: _appBarColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+          ),
+          const SizedBox(width: 16),
+        ],
+      ),
+      body: Container(
+        color: colorScheme.surface,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  
+                  // Task Title Input
+                  Text(
+                    'What needs to be done?',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                _buildSimpleTextField(
+                  controller: _titleController,
+                  hintText: 'Enter task title...',
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter a task title';
+                    }
+                    return null;
+                  },
+                ),
+                
+                const SizedBox(height: 32),
+                
+                // Description Input
+                Text(
+                  'Add details (optional)',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildSimpleTextField(
+                  controller: _descriptionController,
+                  hintText: 'Add more details about your task...',
+                  maxLines: 3,
+                  isOptional: true,
+                ),
+                
+                const SizedBox(height: 32),
+                
+                // Date & Time
+                Text(
+                  'When is this due?',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildSimpleDateSelector(),
+                
+                const SizedBox(height: 24),
+                
+                // Category & Priority Row
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Category',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _buildSimpleCategorySelector(),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Priority',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _buildSimplePrioritySelector(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 32),
+                
+                // Reminder Toggle
+                _buildSimpleReminderToggle(),
+                
+                // Subtasks Section (if editing existing task)
+                if (widget.task != null && widget.task!.subtasks.isNotEmpty) ...[
+                  const SizedBox(height: 32),
+                  Text(
+                    'Subtasks',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...widget.task!.subtasks.map((subtask) => _buildSimpleSubtaskTile(subtask)),
+                ],
+                
+                // Add Subtasks Button (only when creating new task)
+                if (widget.task == null) ...[
+                  const SizedBox(height: 32),
+                  _buildSimpleAddSubtasksButton(),
+                ],
+                
+                const SizedBox(height: 60),
+              ],
+            ),
+          ),
+        ),
+      ),
+      )
+    );
+  }
+
+  // Simple UI Helper Methods
+  Widget _buildSimpleTextField({
+    required TextEditingController controller,
+    required String hintText,
+    String? Function(String?)? validator,
+    int? maxLines,
+    bool isOptional = false,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? colorScheme.surfaceVariant.withOpacity(0.3) : const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? colorScheme.outline.withOpacity(0.3) : Colors.grey[200]!,
+          width: 1,
+        ),
+      ),
+      child: TextFormField(
+        controller: controller,
+        maxLines: maxLines ?? 1,
+        validator: validator,
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: colorScheme.onSurface,
+        ),
+        decoration: InputDecoration(
+          hintText: hintText,
+          hintStyle: TextStyle(
+            color: colorScheme.onSurface.withOpacity(0.5),
+            fontSize: 16,
+            fontWeight: FontWeight.normal,
+          ),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.all(16),
+          enabledBorder: InputBorder.none,
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: _appBarColor, width: 2),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.red, width: 1),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.red, width: 2),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSimpleDateSelector() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? colorScheme.surfaceVariant.withOpacity(0.3) : const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? colorScheme.outline.withOpacity(0.3) : Colors.grey[200]!,
+          width: 1,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _selectDate(context),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.calendar_today_outlined,
+                  color: _appBarColor,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    DateFormat('EEEE, MMM dd, yyyy • h:mm a').format(_dueDate),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: colorScheme.onSurface.withOpacity(0.4),
+                  size: 16,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSimpleCategorySelector() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? colorScheme.surfaceVariant.withOpacity(0.3) : const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? colorScheme.outline.withOpacity(0.3) : Colors.grey[200]!,
+          width: 1,
+        ),
+      ),
+      child: DropdownButtonFormField<String>(
+        decoration: const InputDecoration(
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        ),
+        value: _selectedCategory,
+        hint: Text('Select', style: TextStyle(color: colorScheme.onSurface.withOpacity(0.5))),
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: colorScheme.onSurface,
+        ),
+        icon: Icon(
+          Icons.arrow_drop_down,
+          color: colorScheme.onSurface.withOpacity(0.6),
+        ),
+        isExpanded: true,
+        items: _categories.map((String category) {
+          return DropdownMenuItem<String>(
+            value: category,
+            child: Row(
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: _getCategoryColor(category),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    category[0].toUpperCase() + category.substring(1),
+                    style: const TextStyle(fontSize: 14),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+        onChanged: (String? newValue) {
+          if (newValue != null) {
+            setState(() {
+              _selectedCategory = newValue;
+              _updateAppBarColor();
+            });
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildSimplePrioritySelector() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? colorScheme.surfaceVariant.withOpacity(0.3) : const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? colorScheme.outline.withOpacity(0.3) : Colors.grey[200]!,
+          width: 1,
+        ),
+      ),
+      child: DropdownButtonFormField<TaskPriority>(
+        decoration: const InputDecoration(
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        ),
+        value: _selectedPriority,
+        hint: Text('Select', style: TextStyle(color: colorScheme.onSurface.withOpacity(0.5))),
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: colorScheme.onSurface,
+        ),
+        icon: Icon(
+          Icons.arrow_drop_down,
+          color: colorScheme.onSurface.withOpacity(0.6),
+        ),
+        isExpanded: true,
+        items: TaskPriority.values.map((TaskPriority priority) {
+          return DropdownMenuItem<TaskPriority>(
+            value: priority,
+            child: Row(
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: _getPriorityColor(priority),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    priority.toString().split('.').last.toUpperCase(),
+                    style: const TextStyle(fontSize: 14),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+        onChanged: (TaskPriority? newValue) {
+          if (newValue != null) {
+            setState(() {
+              _selectedPriority = newValue;
+              _updateAppBarColor();
+            });
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildSimpleReminderToggle() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? colorScheme.surfaceVariant.withOpacity(0.3) : const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? colorScheme.outline.withOpacity(0.3) : Colors.grey[200]!,
+          width: 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Icon(
+              _isReminder ? Icons.notifications_active : Icons.notifications_off_outlined,
+              color: _isReminder ? _appBarColor : colorScheme.onSurface.withOpacity(0.6),
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Set reminder notification',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ),
+            Switch(
+              value: _isReminder,
+              activeColor: _appBarColor,
+              onChanged: (value) {
+                setState(() {
+                  _isReminder = value;
+                });
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSimpleSubtaskTile(Subtask subtask) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? colorScheme.surfaceVariant.withOpacity(0.3) : const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isDark ? colorScheme.outline.withOpacity(0.3) : Colors.grey[200]!,
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            subtask.title,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: colorScheme.onSurface,
+            ),
+          ),
+          if (subtask.description.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              subtask.description,
+              style: TextStyle(
+                fontSize: 13,
+                color: colorScheme.onSurface.withOpacity(0.6),
+              ),
+            ),
+          ],
+          const SizedBox(height: 4),
+          Text(
+            'Due: ${DateFormat('MMM dd, yyyy').format(subtask.deadline)}',
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurface.withOpacity(0.5),
+            ),
           ),
         ],
       ),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Form(
-                  key: _formKey,
-                  child: ListView(
-                    children: <Widget>[
-                      TextFormField(
-                        controller: _titleController,
-                        decoration: const InputDecoration(labelText: 'Title'),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please enter a title';
-                          }
-                          return null;
-                        },
-                      ),
-                      TextFormField(
-                        controller: _descriptionController,
-                        decoration: const InputDecoration(
-                          labelText: 'Description (Optional)',
-                        ),
-                        maxLines: 3,
-                      ),
-                      ListTile(
-                        title: Text(
-                          'Due Date: ${DateFormat('MMM dd, yyyy HH:mm').format(_dueDate)}', // Updated format to include time
-                        ),
-                        trailing: const Icon(Icons.calendar_today),
-                        onTap: () => _selectDate(context),
-                      ),
-                      SwitchListTile(
-                        title: const Text('Set as Reminder'),
-                        value: _isReminder,
-                        onChanged: (value) {
-                          setState(() {
-                            _isReminder = value;
-                          });
-                        },
-                      ),
-                      DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(
-                          labelText: 'Category',
-                        ),
-                        value: _selectedCategory,
-                        items:
-                            _categories.map((String category) {
-                              return DropdownMenuItem<String>(
-                                value: category,
-                                child: Text(
-                                  category[0].toUpperCase() +
-                                      category.substring(1),
-                                ),
-                              );
-                            }).toList(),
-                        onChanged: (String? newValue) {
-                          if (newValue != null) {
-                            setState(() {
-                              _selectedCategory = newValue;
-                              _updateAppBarColor();
-                            });
-                          }
-                        },
-                      ),
-                      DropdownButtonFormField<TaskPriority>(
-                        decoration: const InputDecoration(
-                          labelText: 'Priority',
-                        ),
-                        value: _selectedPriority,
-                        items:
-                            TaskPriority.values.map((TaskPriority priority) {
-                              return DropdownMenuItem<TaskPriority>(
-                                value: priority,
-                                child: Text(
-                                  priority
-                                      .toString()
-                                      .split('.')
-                                      .last
-                                      .toUpperCase(),
-                                ),
-                              );
-                            }).toList(),
-                        onChanged: (TaskPriority? newValue) {
-                          if (newValue != null) {
-                            setState(() {
-                              _selectedPriority = newValue;
-                              _updateAppBarColor();
-                            });
-                          }
-                        },
-                      ),
+    );
+  }
 
-if (widget.task != null &&
-    widget.task!.subtasks.isNotEmpty) ...[
-  const SizedBox(height: 20),
-  const Text(
-    'Subtasks',
-    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-  ),
-  const SizedBox(height: 8),
-  ...widget.task!.subtasks.map((subtask) => Card(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        child: ListTile(
-          leading: const Icon(Icons.subdirectory_arrow_right),
-          title: Text(subtask.title),
-          subtitle: Text(
-            '${subtask.description}\nDue: ${DateFormat('MMM dd, yyyy – HH:mm').format(subtask.deadline)}',
-            style: const TextStyle(fontSize: 12),
+  Widget _buildSimpleAddSubtasksButton() {
+    return Container(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () async {
+          bool isEditMode = widget.task != null;
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SubtaskScreen(
+                existingSubtasks: _subtasks,
+                isEditMode: isEditMode,
+              ),
+            ),
+          );
+
+          if (result != null && result is List<Subtask>) {
+            setState(() {
+              _subtasks = result;
+            });
+          }
+        },
+        icon: Icon(
+          Icons.add,
+          color: _appBarColor,
+          size: 20,
+        ),
+        label: Text(
+          'Add Subtasks',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: _appBarColor,
           ),
         ),
-      )),
-],
-
-
-                      const SizedBox(height: 16),
-                      if (widget.task == null) // Only show when creating new task
-                        ElevatedButton.icon(
-  icon: const Icon(Icons.playlist_add),
-  label: const Text('Add Subtasks'),
-  onPressed: () async {
-    bool isEditMode = widget.task != null;
-  final result = await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => SubtaskScreen(
-        existingSubtasks: _subtasks,
-        isEditMode: isEditMode,
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: _appBarColor.withOpacity(0.3)),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
       ),
-    ),
-  );
-
-  if (result != null && result is List<Subtask>) {
-    setState(() {
-      _subtasks = result;
-    });
-  }
-},
-
-),
-
-                    ],
-                  ),
-                ),
-              ),
     );
+  }
+
+  // Helper methods for colors
+  Color _getCategoryColor(String category) {
+    switch (category.toLowerCase()) {
+      case 'academics':
+        return Colors.blue;
+      case 'social':
+        return Colors.purple;
+      case 'personal':
+        return Colors.green;
+      case 'health':
+        return Colors.red;
+      case 'work':
+        return Colors.orange;
+      case 'finance':
+        return Colors.teal;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Color _getPriorityColor(TaskPriority priority) {
+    switch (priority) {
+      case TaskPriority.low:
+        return Colors.green;
+      case TaskPriority.medium:
+        return Colors.orange;
+      case TaskPriority.high:
+        return Colors.red;
+      case TaskPriority.urgent:
+        return Colors.purple;
+    }
+  }
+
+  // Helper method to convert string priority to TaskPriority enum
+  TaskPriority? _stringToPriority(String? priorityString) {
+    if (priorityString == null) return null;
+    
+    switch (priorityString.toLowerCase()) {
+      case 'low':
+        return TaskPriority.low;
+      case 'medium':
+        return TaskPriority.medium;
+      case 'high':
+        return TaskPriority.high;
+      case 'urgent':
+        return TaskPriority.urgent;
+      default:
+        return TaskPriority.medium; // Default fallback
+    }
   }
 }
