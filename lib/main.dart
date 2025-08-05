@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:aiassistant1/services/notification_service.dart';
 import 'package:aiassistant1/services/task_notification_service.dart';
 import 'package:aiassistant1/services/task_notification_integration.dart';
+import 'package:aiassistant1/services/boot_notification_service.dart';
 import 'package:aiassistant1/services/settings_service.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -22,6 +23,9 @@ void main() async {
   
   // Initialize task notification integration
   await TaskNotificationIntegration().initialize();
+  
+  // Handle potential boot/app update scenarios
+  await BootNotificationService().checkAndRescheduleOnLaunch();
   
   print('🚀 All notification services initialized successfully');
   

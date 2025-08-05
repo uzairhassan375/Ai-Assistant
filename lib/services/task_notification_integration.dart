@@ -23,13 +23,56 @@ class TaskNotificationIntegration {
     // Ensure notification service is initialized
     await _notificationService.initialize();
     
+    // Check system notification status
+    final status = await _notificationService.getSystemNotificationStatus();
+    print('TaskNotificationIntegration: System status: $status');
+    
     // Start listening to task changes
     await _startTaskListener();
     
     // Start periodic check for overdue tasks
     _startOverdueTaskChecker();
     
+    // Reschedule any notifications that might have been lost due to system restart
+    await _rescheduleExistingTasks();
+    
     print('TaskNotificationIntegration: Initialized successfully');
+  }
+
+  /// Reschedule notifications for all existing tasks (e.g., after boot)
+  Future<void> _rescheduleExistingTasks() async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) return;
+
+      print('TaskNotificationIntegration: Rescheduling existing tasks...');
+      
+      // Get all incomplete tasks with reminders
+      final tasksQuery = await _firestore
+          .collection('tasks')
+          .where('userId', isEqualTo: currentUser.uid)
+          .where('isCompleted', isEqualTo: false)
+          .where('isArchived', isEqualTo: false)
+          .where('isReminder', isEqualTo: true)
+          .get();
+
+      int rescheduledCount = 0;
+      final now = DateTime.now();
+      
+      for (final doc in tasksQuery.docs) {
+        final task = Task.fromMap(doc.id, doc.data());
+        
+        // Only reschedule future tasks
+        if (task.dueDate.isAfter(now.add(const Duration(minutes: 1)))) {
+          await _notificationService.scheduleTaskNotification(task);
+          rescheduledCount++;
+        }
+      }
+      
+      print('TaskNotificationIntegration: Rescheduled $rescheduledCount tasks');
+    } catch (e) {
+      print('TaskNotificationIntegration: Error rescheduling existing tasks: $e');
+    }
   }
 
   /// Start periodic checker for overdue tasks (every 5 minutes)
@@ -138,15 +181,16 @@ class TaskNotificationIntegration {
         return;
       }
 
-      // Skip if due date is in the past (add 1 minute buffer for scheduling)
+      // Skip if due date is too close or in the past (30 second buffer for scheduling)
       final now = DateTime.now();
-      if (task.dueDate.isBefore(now.add(const Duration(minutes: 1)))) {
-        print('TaskNotificationIntegration: Skipping notification for past due task: ${task.title}');
-        // Show immediate notification for overdue tasks
+      if (task.dueDate.isBefore(now.add(const Duration(seconds: 30)))) {
+        print('TaskNotificationIntegration: Task due date is too close or in the past: ${task.title}');
+        
+        // Show immediate notification for recently overdue tasks (within last hour)
         if (task.dueDate.isBefore(now) && task.dueDate.isAfter(now.subtract(const Duration(hours: 1)))) {
           await _notificationService.showImmediateNotification(
             title: '⏰ Overdue Task: ${task.title}',
-            body: 'This task was due at ${task.dueDate.hour.toString().padLeft(2, '0')}:${task.dueDate.minute.toString().padLeft(2, '0')}',
+            body: 'This task was due at ${task.dueDate.hour.toString().padLeft(2, '0')}:${task.dueDate.minute.toString().padLeft(2, '0')}. Please complete it now!',
             payload: 'task_overdue:${task.id}',
           );
         }
@@ -158,15 +202,30 @@ class TaskNotificationIntegration {
       print('  - Current time: $now');
       print('  - Time until due: ${task.dueDate.difference(now).inMinutes} minutes');
       
-      // Schedule the notification
+      // Schedule the notification with enhanced reliability
       await _notificationService.scheduleTaskNotification(task);
       
       // Verify the notification was scheduled
       await _verifyNotificationScheduled(task);
       
+      // Double-check that we have proper permissions
+      final systemStatus = await _notificationService.getSystemNotificationStatus();
+      if (systemStatus['exactAlarmPermission']?.toString().contains('denied') == true) {
+        print('TaskNotificationIntegration: ⚠️ WARNING: Exact alarm permission denied for task: ${task.title}');
+      }
+      
       print('TaskNotificationIntegration: ✓ Successfully scheduled notification for: ${task.title}');
     } catch (e) {
       print('TaskNotificationIntegration: Error handling task ${task.id}: $e');
+      
+      // Try once more with a fallback strategy
+      try {
+        await Future.delayed(const Duration(seconds: 2));
+        await _notificationService.scheduleTaskNotification(task);
+        print('TaskNotificationIntegration: ✓ Retry successful for: ${task.title}');
+      } catch (retryError) {
+        print('TaskNotificationIntegration: ❌ Retry failed for ${task.title}: $retryError');
+      }
     }
   }
 

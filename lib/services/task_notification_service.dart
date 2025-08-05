@@ -5,6 +5,7 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:flutter/material.dart';
 import 'package:aiassistant1/models/task.dart';
 import 'dart:io' show Platform;
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class TaskNotificationService {
@@ -201,8 +202,8 @@ class TaskNotificationService {
       await cancelTaskNotification(task.id!);
       
       // Check if due date is in the future
-      if (task.dueDate.isBefore(DateTime.now())) {
-        print('TaskNotificationService: Task due date is in the past, skipping: ${task.title}');
+      if (task.dueDate.isBefore(DateTime.now().add(const Duration(seconds: 30)))) {
+        print('TaskNotificationService: Task due date is too close or in the past, skipping: ${task.title}');
         return;
       }
 
@@ -218,6 +219,12 @@ class TaskNotificationService {
       print('  Due Date: ${task.dueDate}');
       print('  Scheduled TZ Date: $scheduledDate');
       print('  Current Time: ${DateTime.now()}');
+
+      // Ensure we have exact alarm permissions
+      final hasExactAlarmPermission = await checkExactAlarmPermission();
+      if (!hasExactAlarmPermission) {
+        print('TaskNotificationService: ⚠️ WARNING: Missing exact alarm permission, notifications may be delayed');
+      }
 
       // Schedule multiple notifications with different strategies for maximum reliability
       await _scheduleReliableNotifications(task, scheduledDate, baseNotificationId);
@@ -236,49 +243,70 @@ class TaskNotificationService {
   Future<void> _scheduleReliableNotifications(Task task, tz.TZDateTime scheduledDate, int baseId) async {
     try {
       final now = tz.TZDateTime.now(tz.local);
+      int scheduledCount = 0;
       
-      // Strategy 1: exactAllowWhileIdle (main notification)
-      await _scheduleNotificationWithStrategy(
-        task, scheduledDate, baseId, 
-        AndroidScheduleMode.exactAllowWhileIdle,
-        isMain: true,
-        titlePrefix: '🔔 '
-      );
-      
-      // Strategy 2: exact mode as backup (30 seconds later)
-      final backup1Time = scheduledDate.add(const Duration(seconds: 30));
-      if (backup1Time.isAfter(now)) {
+      // Strategy 1: exactAllowWhileIdle (main notification at exact time)
+      if (scheduledDate.isAfter(now)) {
         await _scheduleNotificationWithStrategy(
-          task, backup1Time, baseId + 1, 
-          AndroidScheduleMode.exact,
-          isMain: false,
-          titlePrefix: '⏰ REMINDER: '
+          task, scheduledDate, baseId, 
+          AndroidScheduleMode.exactAllowWhileIdle,
+          isMain: true,
+          titlePrefix: '🔔 '
         );
+        scheduledCount++;
       }
       
-      // Strategy 3: inexactAllowWhileIdle as fallback (1 minute later)
-      final backup2Time = scheduledDate.add(const Duration(minutes: 1));
-      if (backup2Time.isAfter(now)) {
+      // Strategy 2: Pre-notification 30 seconds before (to wake the system)
+      final preNotificationTime = scheduledDate.subtract(const Duration(seconds: 30));
+      if (preNotificationTime.isAfter(now)) {
         await _scheduleNotificationWithStrategy(
-          task, backup2Time, baseId + 2, 
-          AndroidScheduleMode.inexactAllowWhileIdle,
-          isMain: false,
-          titlePrefix: '🚨 OVERDUE: '
-        );
-      }
-      
-      // Strategy 4: Another exact notification 2 minutes later
-      final backup3Time = scheduledDate.add(const Duration(minutes: 2));
-      if (backup3Time.isAfter(now)) {
-        await _scheduleNotificationWithStrategy(
-          task, backup3Time, baseId + 3, 
+          task, preNotificationTime, baseId + 1, 
           AndroidScheduleMode.exactAllowWhileIdle,
           isMain: false,
-          titlePrefix: '🚨 URGENT: '
+          titlePrefix: '⏰ APPROACHING: ',
+          isPreNotification: true
         );
+        scheduledCount++;
       }
       
-      print('TaskNotificationService: Scheduled ${backup3Time.isAfter(now) ? 4 : backup2Time.isAfter(now) ? 3 : backup1Time.isAfter(now) ? 2 : 1} notifications for maximum reliability');
+      // Strategy 3: Backup exact mode notification 1 minute after
+      final backup1Time = scheduledDate.add(const Duration(minutes: 1));
+      if (backup1Time.isAfter(now)) {
+        await _scheduleNotificationWithStrategy(
+          task, backup1Time, baseId + 2, 
+          AndroidScheduleMode.exact,
+          isMain: false,
+          titlePrefix: '📢 REMINDER: '
+        );
+        scheduledCount++;
+      }
+      
+      // Strategy 4: Critical alarm notification 2 minutes after (highest priority)
+      final backup2Time = scheduledDate.add(const Duration(minutes: 2));
+      if (backup2Time.isAfter(now)) {
+        await _scheduleNotificationWithStrategy(
+          task, backup2Time, baseId + 3, 
+          AndroidScheduleMode.exactAllowWhileIdle,
+          isMain: false,
+          titlePrefix: '🚨 OVERDUE: ',
+          isCritical: true
+        );
+        scheduledCount++;
+      }
+      
+      // Strategy 5: Final fallback inexact notification 5 minutes after
+      final backup3Time = scheduledDate.add(const Duration(minutes: 5));
+      if (backup3Time.isAfter(now)) {
+        await _scheduleNotificationWithStrategy(
+          task, backup3Time, baseId + 4, 
+          AndroidScheduleMode.inexactAllowWhileIdle,
+          isMain: false,
+          titlePrefix: '🚨 URGENT OVERDUE: '
+        );
+        scheduledCount++;
+      }
+      
+      print('TaskNotificationService: Scheduled $scheduledCount notification strategies for maximum reliability');
     } catch (e) {
       print('TaskNotificationService: Error scheduling reliable notifications: $e');
     }
@@ -290,28 +318,34 @@ class TaskNotificationService {
     tz.TZDateTime scheduledDate, 
     int notificationId,
     AndroidScheduleMode scheduleMode,
-    {bool isMain = true, String titlePrefix = ''}
+    {bool isMain = true, String titlePrefix = '', bool isPreNotification = false, bool isCritical = false}
   ) async {
     // Configure Android notification details with high priority settings
     final AndroidNotificationDetails androidNotificationDetails = AndroidNotificationDetails(
       'task_deadline_channel',
       'Task Deadlines',
       channelDescription: 'Critical task deadline notifications',
-      importance: Importance.max,
-      priority: Priority.high,
+      importance: isCritical ? Importance.max : Importance.high,
+      priority: isCritical ? Priority.max : Priority.high,
       icon: '@mipmap/ic_launcher',
-      color: const Color(0xFF4CAF50),
+      color: isCritical ? const Color(0xFFFF5722) : const Color(0xFF4CAF50),
       colorized: true,
       ongoing: false,
-      autoCancel: true,
+      autoCancel: !isCritical, // Critical notifications stay until dismissed
       playSound: true,
       enableVibration: true,
-      category: AndroidNotificationCategory.alarm, // Highest priority category
+      category: isCritical ? AndroidNotificationCategory.alarm : AndroidNotificationCategory.reminder,
       visibility: NotificationVisibility.public,
-      ticker: 'Task Due: ${task.title}',
+      ticker: isPreNotification ? 'Task Due Soon: ${task.title}' : 'Task Due: ${task.title}',
       usesChronometer: false,
       showWhen: true,
-      fullScreenIntent: isMain, // Full screen for main notification
+      fullScreenIntent: isMain || isCritical, // Full screen for main and critical notifications
+      // Custom vibration pattern for different notification types
+      vibrationPattern: isCritical 
+          ? Int64List.fromList([0, 1000, 500, 1000, 500, 1000]) // Long pattern for critical
+          : isPreNotification 
+              ? Int64List.fromList([0, 300, 100, 300]) // Short pattern for pre-notification
+              : Int64List.fromList([0, 500, 250, 500]), // Normal pattern
       // Add action buttons only for main notification
       actions: isMain ? <AndroidNotificationAction>[
         const AndroidNotificationAction(
@@ -329,15 +363,20 @@ class TaskNotificationService {
     );
 
     // Configure iOS notification details
-    const DarwinNotificationDetails iosNotificationDetails = DarwinNotificationDetails(
+    final DarwinNotificationDetails iosNotificationDetails = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
-      sound: 'default',
+      sound: isCritical ? 'alarm.aiff' : 'default',
       badgeNumber: 1,
       threadIdentifier: 'task_notifications',
       categoryIdentifier: 'TASK_DEADLINE_CATEGORY',
-      interruptionLevel: InterruptionLevel.critical, // Critical level for iOS
+      interruptionLevel: isCritical 
+          ? InterruptionLevel.critical 
+          : isPreNotification 
+              ? InterruptionLevel.active 
+              : InterruptionLevel.timeSensitive,
+      subtitle: isPreNotification ? 'Due Soon' : 'Due Now',
     );
 
     final NotificationDetails notificationDetails = NotificationDetails(
@@ -346,8 +385,10 @@ class TaskNotificationService {
     );
 
     // Create notification title and body
-    final String title = '${titlePrefix}Task Due: ${task.title}';
-    final String body = _createEnhancedNotificationBody(task, isMain);
+    final String title = isPreNotification 
+        ? '${titlePrefix}Task Due in 30 seconds: ${task.title}'
+        : '${titlePrefix}Task Due: ${task.title}';
+    final String body = _createEnhancedNotificationBody(task, isMain, isPreNotification, isCritical);
 
     // Schedule the notification
     await _flutterLocalNotificationsPlugin.zonedSchedule(
@@ -365,8 +406,20 @@ class TaskNotificationService {
   }
 
   /// Create enhanced notification body with more details
-  String _createEnhancedNotificationBody(Task task, bool isMain) {
+  String _createEnhancedNotificationBody(Task task, bool isMain, [bool isPreNotification = false, bool isCritical = false]) {
     final StringBuffer body = StringBuffer();
+    
+    // Add special message for pre-notifications
+    if (isPreNotification) {
+      body.writeln('⏰ This task is due in 30 seconds!');
+      body.writeln('');
+    }
+    
+    // Add critical warning for overdue tasks
+    if (isCritical) {
+      body.writeln('🚨 CRITICAL: This task is now overdue!');
+      body.writeln('');
+    }
     
     // Add task description if available
     if (task.description != null && task.description!.isNotEmpty) {
@@ -386,8 +439,12 @@ class TaskNotificationService {
       body.writeln('Category: ${task.category}');
     }
     
-    // Add reliability info for main notification
-    if (isMain) {
+    // Add time-specific advice
+    if (isPreNotification) {
+      body.writeln('\n🏃‍♂️ Final chance to complete this task!');
+    } else if (isCritical) {
+      body.writeln('\n⚠️ Please complete this task immediately!');
+    } else if (isMain) {
       body.writeln('\n💡 Tap to open app or use action buttons');
     }
     
@@ -452,8 +509,8 @@ class TaskNotificationService {
     try {
       final int baseNotificationId = _generateNotificationId(taskId);
       
-      // Cancel all notifications for this task (main + up to 3 backups)
-      for (int i = 0; i < 4; i++) {
+      // Cancel all notifications for this task (main + up to 4 backups)
+      for (int i = 0; i < 5; i++) {
         await _flutterLocalNotificationsPlugin.cancel(baseNotificationId + i);
       }
       
@@ -699,6 +756,60 @@ class TaskNotificationService {
       
     } catch (e) {
       print('TaskNotificationService: Error scheduling enhanced test notifications: $e');
+    }
+  }
+
+  /// Reschedule all notifications after system boot or app update
+  Future<void> rescheduleNotificationsAfterBoot() async {
+    if (kIsWeb) return;
+    
+    try {
+      print('TaskNotificationService: Rescheduling notifications after boot...');
+      
+      // Clear any existing notifications first
+      await cancelAllNotifications();
+      
+      // This would typically be called by the TaskNotificationIntegration
+      // to reschedule all active task notifications
+      print('TaskNotificationService: Boot rescheduling complete. TaskNotificationIntegration should handle task rescheduling.');
+      
+    } catch (e) {
+      print('TaskNotificationService: Error rescheduling notifications after boot: $e');
+    }
+  }
+
+  /// Check system notification settings and provide feedback
+  Future<Map<String, dynamic>> getSystemNotificationStatus() async {
+    if (kIsWeb) return {'platform': 'web', 'supported': false};
+    
+    try {
+      final Map<String, dynamic> status = {
+        'platform': Platform.isAndroid ? 'android' : 'ios',
+        'supported': true,
+        'initialized': _initialized,
+      };
+      
+      // Check permissions
+      status['notificationPermission'] = await Permission.notification.status;
+      
+      if (Platform.isAndroid) {
+        status['exactAlarmPermission'] = await Permission.scheduleExactAlarm.status;
+        status['batteryOptimizationIgnored'] = await Permission.ignoreBatteryOptimizations.status;
+      }
+      
+      // Check pending notifications
+      final pendingNotifications = await getPendingNotifications();
+      status['pendingNotificationsCount'] = pendingNotifications.length;
+      
+      // Check timezone
+      status['timezone'] = tz.local.name;
+      
+      print('TaskNotificationService: System status: $status');
+      return status;
+      
+    } catch (e) {
+      print('TaskNotificationService: Error getting system status: $e');
+      return {'error': e.toString()};
     }
   }
 
