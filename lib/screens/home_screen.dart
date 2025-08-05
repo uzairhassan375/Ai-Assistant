@@ -66,12 +66,11 @@ class _HomeScreenState extends State<HomeScreen> {
         title: Text(_getAppBarTitle()),
         automaticallyImplyLeading: true,
       ),
-      body:
-          _selectedIndex == 0
-              ? TasksView(key: ValueKey(_currentFilter), filter: _currentFilter)
-              : _selectedIndex == 1
-              ? const CalendarScreen()
-              : const SettingsScreen(),
+      body: _selectedIndex == 0
+          ? TasksView(key: ValueKey(_currentFilter), filter: _currentFilter)
+          : _selectedIndex == 1
+          ? const CalendarScreen()
+          : const SettingsScreen(),
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,

@@ -4,7 +4,6 @@ import 'package:aiassistant1/models/task.dart';
 import 'package:aiassistant1/services/task_services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
-import 'package:aiassistant1/services/notification_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:aiassistant1/models/subtask.dart';
 
@@ -207,7 +206,6 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
       );
 
       try {
-        String? taskId = widget.task?.id;
         if (_isReminder) {
           // Check if the due date is in the past (current time, not just date)
           if (_dueDate.isBefore(DateTime.now())) {
@@ -259,23 +257,26 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
         }
         if (widget.task == null) {
           // Create new task
-          final createdTask = await taskService.createTask(task);
-          taskId = createdTask.id;
-          if (_isReminder && taskId != null) {
-            await NotificationService().scheduleReminderNotification(
-              id: taskId.hashCode,
-              title: 'Task Reminder',
-              body: task.title,
-              dueDate: task.dueDate,
-              taskId: taskId,
-            );
-          }
+          await taskService.createTask(task);
+          // Note: TaskNotificationIntegration automatically handles notification scheduling
+          // via Firestore listeners - no manual scheduling needed
+          
+          // Debug: Log task creation details
+          print('🚀 Task created successfully:');
+          print('  - Title: ${task.title}');
+          print('  - Due Date: ${task.dueDate}');
+          print('  - Is Reminder: ${task.isReminder}');
+          print('  - Current Time: ${DateTime.now()}');
+          print('  - Time until due: ${task.dueDate.difference(DateTime.now()).inMinutes} minutes');
+          
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Task created successfully!'),
+              SnackBar(
+                content: Text(task.isReminder 
+                  ? 'Task created with reminder set for ${DateFormat('MMM dd, h:mm a').format(task.dueDate)}!' 
+                  : 'Task created successfully!'),
                 behavior: SnackBarBehavior.fixed,
-                shape: RoundedRectangleBorder(
+                shape: const RoundedRectangleBorder(
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(16),
                     topRight: Radius.circular(16),
@@ -287,25 +288,25 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
         } else {
           // Update existing task
           await taskService.updateTask(task);
-          if (taskId != null) {
-            if (_isReminder) {
-              await NotificationService().scheduleReminderNotification(
-                id: taskId.hashCode,
-                title: 'Task Reminder',
-                body: task.title,
-                dueDate: task.dueDate,
-                taskId: taskId,
-              );
-            } else {
-              await NotificationService().cancelNotification(taskId.hashCode);
-            }
-          }
+          // Note: TaskNotificationIntegration automatically handles notification scheduling
+          // via Firestore listeners - no manual scheduling needed
+          
+          // Debug: Log task update details
+          print('🔄 Task updated successfully:');
+          print('  - Title: ${task.title}');
+          print('  - Due Date: ${task.dueDate}');
+          print('  - Is Reminder: ${task.isReminder}');
+          print('  - Current Time: ${DateTime.now()}');
+          print('  - Time until due: ${task.dueDate.difference(DateTime.now()).inMinutes} minutes');
+          
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Task updated successfully!'),
+              SnackBar(
+                content: Text(task.isReminder 
+                  ? 'Task updated with reminder set for ${DateFormat('MMM dd, h:mm a').format(task.dueDate)}!' 
+                  : 'Task updated successfully!'),
                 behavior: SnackBarBehavior.fixed,
-                shape: RoundedRectangleBorder(
+                shape: const RoundedRectangleBorder(
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(16),
                     topRight: Radius.circular(16),

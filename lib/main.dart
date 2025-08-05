@@ -5,6 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:aiassistant1/services/notification_service.dart';
+import 'package:aiassistant1/services/task_notification_service.dart';
+import 'package:aiassistant1/services/task_notification_integration.dart';
 import 'package:aiassistant1/services/settings_service.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -13,7 +15,16 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  // Initialize notification services with timezone support
   await NotificationService().init();
+  await TaskNotificationService().initialize();
+  
+  // Initialize task notification integration
+  await TaskNotificationIntegration().initialize();
+  
+  print('🚀 All notification services initialized successfully');
+  
   runApp(
     ChangeNotifierProvider(
       create: (context) => SettingsService(),
@@ -64,8 +75,16 @@ class MyApp extends StatelessWidget {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               } else if (snapshot.hasData) {
+                // User signed in - reinitialize task notification integration
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  TaskNotificationIntegration().reinitialize();
+                });
                 return const HomeScreen();
               } else {
+                // User signed out - dispose task notification integration
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  TaskNotificationIntegration().dispose();
+                });
                 return const SignInPage();
               }
             },

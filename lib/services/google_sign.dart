@@ -50,7 +50,7 @@ Future<void> Google_login_signup(BuildContext context) async {
       (route) => false,
     );
 
-    // 7. Show welcome message
+    // 8. Show welcome message
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

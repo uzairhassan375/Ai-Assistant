@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:aiassistant1/models/task.dart';
 import 'package:aiassistant1/services/android_notification_helper.dart';
 import 'dart:io' show Platform;
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -21,13 +23,33 @@ class NotificationService {
   // Callback for in-app notification handling
   static Function(Task)? onInAppNotification;
 
+  // Helper method to check if running on Android (not web)
+  bool get _isAndroid {
+    if (kIsWeb) return false;
+    try {
+      return Platform.isAndroid;
+    } catch (e) {
+      return false;
+    }
+  }
+
   Future<void> init() async {
+    // For web, skip all native notification initialization
+    if (kIsWeb) {
+      print('Web platform detected - local notifications not supported');
+      return;
+    }
+    
+    // Only initialize timezone and Android-specific features on mobile platforms
     tz.initializeTimeZones();
     
-    // Clear any corrupted notification data on Android to prevent TypeToken issues
+    // Clear any corrupted notification data on Android to prevent TypeToken issues  
     if (Platform.isAndroid) {
       await AndroidNotificationHelper.clearCorruptedNotifications();
     }
+    
+    // Initialize notification channels
+    await _initializeNotificationChannels();
     
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -52,7 +74,7 @@ class NotificationService {
       );
     } catch (e) {
       // If initialization fails due to TypeToken issues on Android, try to recover
-      if (Platform.isAndroid && e.toString().contains('TypeToken')) {
+      if (_isAndroid && e.toString().contains('TypeToken')) {
         await AndroidNotificationHelper.clearCorruptedNotifications();
         // Retry initialization
         await flutterLocalNotificationsPlugin.initialize(
@@ -78,13 +100,18 @@ class NotificationService {
   }
 
   Future<void> _requestNotificationPermission() async {
+    // Skip permission requests on web
+    if (kIsWeb) {
+      return;
+    }
+    
     final status = await Permission.notification.status;
     if (status.isDenied) {
       await Permission.notification.request();
     }
     
     // Check Android-specific permissions
-    if (Platform.isAndroid) {
+    if (_isAndroid) {
       await _checkBatteryOptimization();
       await _checkExactAlarmPermission();
     }
@@ -127,6 +154,28 @@ class NotificationService {
     required DateTime dueDate,
     String? taskId,
   }) async {
+    // Skip scheduling on web platform
+    if (kIsWeb) {
+      print('Web platform: Notification scheduling not supported - $title');
+      return;
+    }
+    
+    await _scheduleReminderNotificationNative(
+      id: id,
+      title: title,
+      body: body,
+      dueDate: dueDate,
+      taskId: taskId,
+    );
+  }
+
+  Future<void> _scheduleReminderNotificationNative({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime dueDate,
+    String? taskId,
+  }) async {
     try {
       // Check if the due date is in the future
       if (dueDate.isBefore(DateTime.now())) {
@@ -138,7 +187,7 @@ class NotificationService {
       await _requestNotificationPermission();
       
       // Request exact alarm permission for Android
-      if (Platform.isAndroid) {
+      if (_isAndroid) {
         final status = await Permission.scheduleExactAlarm.status;
         if (status.isDenied) {
           final result = await Permission.scheduleExactAlarm.request();
@@ -413,6 +462,13 @@ class NotificationService {
     required String body,
     String? payload,
   }) async {
+    // For web, show browser notification or in-app message
+    if (kIsWeb) {
+      print('Web notification: $title - $body');
+      // You could implement web notifications here if needed
+      return;
+    }
+    
     try {
       // Ensure notification permission is granted
       await _requestNotificationPermission();
@@ -612,6 +668,177 @@ class NotificationService {
     await flutterLocalNotificationsPlugin.cancelAll();
     if (Platform.isAndroid) {
       await AndroidNotificationHelper.clearCorruptedNotifications();
+    }
+  }
+
+  // Schedule task deadline notification
+  Future<void> scheduleTaskDeadlineNotification({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime scheduledDate,
+    required String taskId,
+  }) async {
+    // Skip scheduling on web platform
+    if (kIsWeb) {
+      print('Web platform: Task deadline notification scheduling not supported - $title');
+      return;
+    }
+    
+    try {
+      // Check if the scheduled date is in the future
+      if (scheduledDate.isBefore(DateTime.now())) {
+        print('Cannot schedule task deadline notification for past date: $scheduledDate');
+        return;
+      }
+      
+      // Ensure notification permissions
+      await _requestNotificationPermission();
+      
+      // Request exact alarm permission for Android
+      if (_isAndroid) {
+        final status = await Permission.scheduleExactAlarm.status;
+        if (status.isDenied) {
+          final result = await Permission.scheduleExactAlarm.request();
+          if (result.isDenied || result.isPermanentlyDenied) {
+            print('Exact alarm permission denied for task deadline notification');
+            return;
+          }
+        }
+      }
+      
+      final scheduledTZDate = tz.TZDateTime.from(scheduledDate, tz.local);
+      
+      // Debug information
+      print('Scheduling task deadline notification:');
+      print('  ID: $id');
+      print('  Title: $title');
+      print('  Task ID: $taskId');
+      print('  Current time: ${DateTime.now()}');
+      print('  Scheduled time: $scheduledDate');
+      print('  TZ Scheduled time: $scheduledTZDate');
+      
+      final AndroidNotificationDetails androidNotificationDetails = AndroidNotificationDetails(
+        'task_deadline_channel',
+        'Task Deadline Notifications',
+        channelDescription: 'Notifications for task deadlines and due dates',
+        importance: Importance.max,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+        color: const Color(0xFF4CAF50), // Green color for deadline alerts
+        colorized: true,
+        ongoing: false,
+        autoCancel: true,
+        playSound: true,
+        enableVibration: true,
+        vibrationPattern: Int64List.fromList([0, 500, 500, 500]),
+        category: AndroidNotificationCategory.reminder,
+        visibility: NotificationVisibility.public,
+        ticker: 'Task Deadline Alert',
+        when: null,
+        usesChronometer: false,
+        chronometerCountDown: false,
+      );
+
+      const DarwinNotificationDetails iosNotificationDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        sound: 'default',
+        badgeNumber: 1,
+        threadIdentifier: 'task_deadline_thread',
+        categoryIdentifier: 'TASK_DEADLINE_CATEGORY',
+        interruptionLevel: InterruptionLevel.active,
+      );
+
+      final NotificationDetails notificationDetails = NotificationDetails(
+        android: androidNotificationDetails,
+        iOS: iosNotificationDetails,
+      );
+
+      await flutterLocalNotificationsPlugin.zonedSchedule(
+        id, // Unique notification ID
+        title,
+        body,
+        scheduledTZDate,
+        notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        payload: 'task_deadline:$taskId',
+      );
+      
+      print('Task deadline notification scheduled successfully');
+      
+      // Verify the notification was scheduled
+      final pendingNotifications = await flutterLocalNotificationsPlugin.pendingNotificationRequests();
+      final ourNotification = pendingNotifications.where((n) => n.id == id).toList();
+      if (ourNotification.isNotEmpty) {
+        print('Verification: Task deadline notification found in pending list');
+      } else {
+        print('Warning: Task deadline notification not found in pending list');
+      }
+      
+    } catch (e) {
+      print('Error scheduling task deadline notification: $e');
+      rethrow;
+    }
+  }
+
+  /// Initialize notification channels for better organization and reliability
+  Future<void> _initializeNotificationChannels() async {
+    if (kIsWeb || !_isAndroid) return;
+    
+    try {
+      // High importance channel for task deadlines
+      const AndroidNotificationChannel taskDeadlineChannel = AndroidNotificationChannel(
+        'task_deadline_channel',
+        'Task Deadline Notifications',
+        description: 'Notifications for task deadlines and due dates',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+        showBadge: true,
+      );
+      
+      // Medium importance channel for reminders
+      const AndroidNotificationChannel reminderChannel = AndroidNotificationChannel(
+        'reminder_channel',
+        'Task Reminders',
+        description: 'General task reminder notifications',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+        showBadge: true,
+      );
+      
+      // Low importance channel for overdue tasks
+      const AndroidNotificationChannel overdueChannel = AndroidNotificationChannel(
+        'overdue_channel',
+        'Overdue Tasks',
+        description: 'Notifications for overdue tasks',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+        showBadge: true,
+      );
+      
+      // Create the channels
+      await flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(taskDeadlineChannel);
+          
+      await flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(reminderChannel);
+          
+      await flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(overdueChannel);
+      
+      print('NotificationService: Initialized notification channels');
+    } catch (e) {
+      print('NotificationService: Error initializing channels: $e');
     }
   }
 }

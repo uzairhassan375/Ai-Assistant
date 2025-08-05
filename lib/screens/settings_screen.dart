@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'package:aiassistant1/services/settings_service.dart';
-import 'package:aiassistant1/widgets/reminder_widget.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -53,11 +52,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildThemeSelector(settings),
           const SizedBox(height: 16),
           _buildFontSlider(settings),
-          const Divider(height: 32),
-
-          // Notification Settings
-          _buildSectionHeader('Notifications'),
-          const ReminderWidget(),
           const Divider(height: 32),
 
           // Account Settings
