@@ -24,6 +24,7 @@ class _VoiceTaskCreationScreenState extends State<VoiceTaskCreationScreen> {
   bool _isSaving = false;
   Map<String, dynamic>? _parsedResponse;
   String _originalUserInput = "";
+  String? _userFeedback; // Track user's feedback on AI response
 
   final List<String> _categories = [
     'academics',
@@ -245,8 +246,46 @@ User said: "$userSpeech"
       _wordsSpoken = "";
       _parsedResponse = null;
       _isProcessing = false;
+      _userFeedback = null; // Reset feedback
     });
     _startListening();
+  }
+
+  void _showFeedbackSnackBar(bool isLike) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isLike ? Icons.thumb_up : Icons.thumb_down,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                isLike 
+                  ? 'Thanks for the positive feedback! 👍'
+                  : 'Thanks for the feedback. We\'ll improve! 👎',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: isLike ? Colors.green[600] : Colors.orange[600],
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.fixed,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _saveTask() async {
@@ -613,6 +652,127 @@ User said: "$userSpeech"
           _buildModernPreviewRow('Due Date', _parsedResponse!['due_date'] ?? '', Icons.calendar_today),
           _buildModernPreviewRow('Due Time', _parsedResponse!['due_time'] ?? 'Not specified', Icons.access_time),
           _buildModernPreviewRow('Category', _parsedResponse!['category'] ?? '', Icons.category),
+          
+          // Feedback section
+          const SizedBox(height: 20),
+          const Divider(color: Colors.grey),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Icon(
+                Icons.feedback_outlined,
+                size: 16,
+                color: Colors.grey,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'How is this AI response?',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[700],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              // Like button
+              Expanded(
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      _userFeedback = 'like';
+                    });
+                    _showFeedbackSnackBar(true);
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: _userFeedback == 'like' ? Colors.green.withOpacity(0.1) : Colors.grey.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _userFeedback == 'like' ? Colors.green : Colors.grey.withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.thumb_up_outlined,
+                          size: 16,
+                          color: _userFeedback == 'like' ? Colors.green : Colors.grey[600],
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            'Good',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: _userFeedback == 'like' ? Colors.green : Colors.grey[600],
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Dislike button
+              Expanded(
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      _userFeedback = 'dislike';
+                    });
+                    _showFeedbackSnackBar(false);
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: _userFeedback == 'dislike' ? Colors.red.withOpacity(0.1) : Colors.grey.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _userFeedback == 'dislike' ? Colors.red : Colors.grey.withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.thumb_down_outlined,
+                          size: 16,
+                          color: _userFeedback == 'dislike' ? Colors.red : Colors.grey[600],
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            'Needs work',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: _userFeedback == 'dislike' ? Colors.red : Colors.grey[600],
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
