@@ -7,6 +7,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:aiassistant1/models/task.dart';
 import 'package:aiassistant1/services/task_services.dart';
+import '../services/connectivity_service.dart';
 
 class VoiceTaskCreationScreen extends StatefulWidget {
   const VoiceTaskCreationScreen({super.key});
@@ -17,11 +18,13 @@ class VoiceTaskCreationScreen extends StatefulWidget {
 
 class _VoiceTaskCreationScreenState extends State<VoiceTaskCreationScreen> {
   final SpeechToText _speechToText = SpeechToText();
+  final ConnectivityService _connectivityService = ConnectivityService();
   bool _speechEnabled = false;
   String _wordsSpoken = "";
   bool _isListening = false;
   bool _isProcessing = false;
   bool _isSaving = false;
+  bool _isCheckingConnection = false;
   Map<String, dynamic>? _parsedResponse;
   String _originalUserInput = "";
   String? _userFeedback; // Track user's feedback on AI response
@@ -104,6 +107,27 @@ class _VoiceTaskCreationScreenState extends State<VoiceTaskCreationScreen> {
   Future<void> _getGeminiResponse(String userSpeech) async {
     print('🤖 Starting AI processing for voice input: "$userSpeech"');
     
+    // Check internet connection BEFORE making API call
+    setState(() {
+      _isCheckingConnection = true;
+    });
+
+    final hasConnection = await _connectivityService.validateConnectionForAI(
+      context,
+      feature: "Voice Task Creation",
+    );
+
+    setState(() {
+      _isCheckingConnection = false;
+    });
+
+    if (!hasConnection) {
+      setState(() {
+        _isProcessing = false;
+      });
+      return;
+    }
+
     final apiKey = dotenv.env['GEMINI_API_KEY'];
     if (apiKey == null || apiKey.isEmpty) {
       print('❌ API key not found');
@@ -230,13 +254,18 @@ User said: "$userSpeech"
         );
       }
     } catch (e) {
-      setState(() {
-        _isProcessing = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
-        );
+      // Handle network errors specifically
+      if (_connectivityService.isNetworkError(e)) {
+        _connectivityService.handleNetworkError(context, e);
+      } else {
+        setState(() {
+          _isProcessing = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: ${e.toString()}')),
+          );
+        }
       }
     }
   }
@@ -1017,7 +1046,7 @@ User said: "$userSpeech"
         children: [
           // Gradient Header
           Container(
-            height: 120,
+            height: _isCheckingConnection ? 140 : 120,
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
@@ -1028,33 +1057,68 @@ User said: "$userSpeech"
                 ],
               ),
             ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
+            child: Column(
+              children: [
+                // Add connection status indicator
+                if (_isCheckingConnection)
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(50),
+                      color: Colors.orange,
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(
-                      _getStatusIcon(),
-                      size: 32,
-                      color: Colors.white,
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Checking connection...',
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _getStatusText(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
+                Expanded(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(50),
+                          ),
+                          child: Icon(
+                            _getStatusIcon(),
+                            size: 32,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _getStatusText(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
           

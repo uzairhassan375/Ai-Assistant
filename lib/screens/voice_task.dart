@@ -4,6 +4,8 @@ import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../services/connectivity_service.dart';
+
 //Implementing Voice Ai
 class CreateVoiceTaskScreen extends StatefulWidget {
   const CreateVoiceTaskScreen({super.key});
@@ -14,11 +16,13 @@ class CreateVoiceTaskScreen extends StatefulWidget {
 
 class _HomePageState extends State<CreateVoiceTaskScreen> {
   final SpeechToText _speechToText = SpeechToText();
+  final ConnectivityService _connectivityService = ConnectivityService();
   bool _speechEnabled = false;
   String _wordsSpoken = "";
   String _aiResponse = "";
   bool _isProcessing = false;
   bool _isListening = false;
+  bool _isCheckingConnection = false;
   Map<String, dynamic>? _parsedResponse;
 
   @override
@@ -56,14 +60,44 @@ class _HomePageState extends State<CreateVoiceTaskScreen> {
     if (result.finalResult) {
       setState(() {
         _wordsSpoken = result.recognizedWords;
-        _isProcessing = true;
       });
-      _getGeminiResponse(_wordsSpoken);
+      // Process the voice command after getting final result
+      _processVoiceCommand(_wordsSpoken);
     } else {
       setState(() {
         _wordsSpoken = result.recognizedWords;
       });
     }
+  }
+
+  Future<void> _processVoiceCommand(String userSpeech) async {
+    if (userSpeech.trim().isEmpty) return;
+
+    setState(() {
+      _isCheckingConnection = true;
+    });
+
+    // Check internet connection BEFORE making API call
+    final hasConnection = await _connectivityService.validateConnectionForAI(
+      context,
+      feature: "Voice AI Task Creation",
+    );
+
+    setState(() {
+      _isCheckingConnection = false;
+    });
+
+    if (!hasConnection) {
+      // No internet connection, don't proceed with API call
+      setState(() {
+        _isProcessing = false;
+        _aiResponse = "Internet connection required for AI processing";
+      });
+      return;
+    }
+
+    // Proceed with Gemini API call if connection is available
+    await _getGeminiResponse(userSpeech);
   }
 
   String getCurrentDateFormatted() {
@@ -102,15 +136,41 @@ class _HomePageState extends State<CreateVoiceTaskScreen> {
   }
 
   Future<void> _getGeminiResponse(String userSpeech) async {
+    // Check internet connection BEFORE making API call
+    setState(() {
+      _isCheckingConnection = true;
+    });
+
+    final hasConnection = await _connectivityService.validateConnectionForAI(
+      context,
+      feature: "Voice AI Task Creation",
+    );
+
+    setState(() {
+      _isCheckingConnection = false;
+    });
+
+    if (!hasConnection) {
+      setState(() {
+        _isProcessing = false;
+        _aiResponse = "Internet connection required for AI processing";
+      });
+      return;
+    }
+
     const apiKey =
-        'AIzaSyCQb1ezGKXu82Jy3UNAMm_H0UCX-6jnfiU'; // Store this securelyAIzaSyCQb1ezGKXu82Jy3UNAMm_H0UCX-6jnfiU
+        'AIzaSyCQb1ezGKXu82Jy3UNAMm_H0UCX-6jnfiU';
     const modelName =
-        'gemini-1.5-pro'; // or 'gemini-1.5-flash' for faster responses
+        'gemini-1.5-pro';
     final url = Uri.parse(
       'https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey',
     );
 
     try {
+      setState(() {
+        _isProcessing = true;
+      });
+
       final today = getCurrentDateFormatted();
 
       final prompt = """
@@ -189,10 +249,19 @@ User said: "$userSpeech"
         );
       }
     } catch (e) {
-      setState(() {
-        _aiResponse = "Error: ${e.toString()}";
-        _isProcessing = false;
-      });
+      // Handle network errors specifically
+      if (_connectivityService.isNetworkError(e)) {
+        _connectivityService.handleNetworkError(context, e);
+        setState(() {
+          _aiResponse = "Connection failed. Please check your internet connection.";
+          _isProcessing = false;
+        });
+      } else {
+        setState(() {
+          _aiResponse = "Error: ${e.toString()}";
+          _isProcessing = false;
+        });
+      }
     }
   }
 
@@ -313,6 +382,34 @@ User said: "$userSpeech"
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // Add connection status indicator
+              if (_isCheckingConnection)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Checking internet connection...',
+                        style: TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
               Text(
                 _isListening
                     ? "Listening... Speak now"

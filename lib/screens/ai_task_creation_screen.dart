@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../services/connectivity_service.dart';
 
 class AITaskCreationScreen extends StatefulWidget {
   final String? existingTitle;
@@ -26,13 +27,10 @@ class AITaskCreationScreen extends StatefulWidget {
 
 class _AITaskCreationScreenState extends State<AITaskCreationScreen> {
   final _quickInputController = TextEditingController();
-  // Removed speech-to-text functionality
-  // final SpeechToText _speechToText = SpeechToText();
-  // bool _speechEnabled = false;
-  // String _wordsSpoken = "";
-  // bool _isListening = false;
+  final ConnectivityService _connectivityService = ConnectivityService();
   bool _isProcessing = false;
   bool _isSaving = false;
+  bool _isCheckingConnection = false;
   Map<String, dynamic>? _parsedResponse;
   String _originalUserInput = ""; // Store the original user input to determine task type
   String? _userFeedback; // Track user's feedback on AI response
@@ -80,6 +78,27 @@ class _AITaskCreationScreenState extends State<AITaskCreationScreen> {
   Future<void> _getGeminiResponse(String userSpeech) async {
     print('🤖 Starting AI processing for: "$userSpeech"'); // Debug log
     
+    // Check internet connection BEFORE making API call
+    setState(() {
+      _isCheckingConnection = true;
+    });
+
+    final hasConnection = await _connectivityService.validateConnectionForAI(
+      context,
+      feature: "AI Task Creation",
+    );
+
+    setState(() {
+      _isCheckingConnection = false;
+    });
+
+    if (!hasConnection) {
+      setState(() {
+        _isProcessing = false;
+      });
+      return;
+    }
+
     // Store the original user input to determine task type later
     _originalUserInput = userSpeech;
     
@@ -250,24 +269,29 @@ User said: "$userSpeech"
         );
       }
     } catch (e) {
-      setState(() {
-        _isProcessing = false;
-      });
-      if (mounted) {
-        // Don't close the screen on error - show error and let user try again
-        // Navigator.of(context).pop(); // Close dialog on error
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            behavior: SnackBarBehavior.fixed,
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
+      // Handle network errors specifically
+      if (_connectivityService.isNetworkError(e)) {
+        _connectivityService.handleNetworkError(context, e);
+      } else {
+        setState(() {
+          _isProcessing = false;
+        });
+        if (mounted) {
+          // Don't close the screen on error - show error and let user try again
+          // Navigator.of(context).pop(); // Close dialog on error
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: ${e.toString()}'),
+              behavior: SnackBarBehavior.fixed,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
               ),
             ),
-          ),
-        );
+          );
+        }
       }
     }
   }
@@ -671,6 +695,34 @@ User said: "$userSpeech"
       body: SingleChildScrollView(
         child: Column(
           children: [
+            // Add connection status indicator
+            if (_isCheckingConnection)
+              Container(
+                margin: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Checking internet connection...',
+                      style: TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
             Container(
               padding: const EdgeInsets.all(16),
               child: Column(
