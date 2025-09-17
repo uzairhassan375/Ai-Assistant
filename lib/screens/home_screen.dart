@@ -301,6 +301,8 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -315,25 +317,29 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         child: SafeArea(
-          child: _selectedIndex == 0
-              ? TasksView(key: ValueKey(_currentFilter), filter: _currentFilter)
-              : _selectedIndex == 1
-              ? Container(
-                  width: double.infinity,
-                  height: double.infinity,
-                  decoration: const BoxDecoration(
-                    color: Colors.transparent,
+          child: SizedBox(
+            width: double.infinity,
+            height: double.infinity,
+            child: _selectedIndex == 0
+                ? TasksView(key: ValueKey(_currentFilter), filter: _currentFilter)
+                : _selectedIndex == 1
+                ? Container(
+                    width: double.infinity,
+                    height: double.infinity,
+                    decoration: const BoxDecoration(
+                      color: Colors.transparent,
+                    ),
+                    child: const CalendarScreen(),
+                  )
+                : Container(
+                    width: double.infinity,
+                    height: double.infinity,
+                    decoration: const BoxDecoration(
+                      color: Colors.transparent,
+                    ),
+                    child: const SettingsScreen(),
                   ),
-                  child: const CalendarScreen(),
-                )
-              : Container(
-                  width: double.infinity,
-                  height: double.infinity,
-                  decoration: const BoxDecoration(
-                    color: Colors.transparent,
-                  ),
-                  child: const SettingsScreen(),
-                ),
+          ),
         ),
       ),
       drawer: Drawer(
@@ -698,6 +704,8 @@ class _TasksViewState extends State<TasksView> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Container(
+              width: double.infinity,
+              height: double.infinity,
               padding: const EdgeInsets.all(32),
               decoration: const BoxDecoration(
                 color: Colors.transparent,
@@ -733,6 +741,8 @@ class _TasksViewState extends State<TasksView> {
           if (snapshot.hasError) {
             final error = snapshot.error;
             return Container(
+              width: double.infinity,
+              height: double.infinity,
               padding: const EdgeInsets.all(32),
               decoration: const BoxDecoration(
                 color: Colors.transparent,
@@ -780,6 +790,8 @@ class _TasksViewState extends State<TasksView> {
           final tasks = snapshot.data ?? [];
           if (tasks.isEmpty) {
             return Container(
+              width: double.infinity,
+              height: double.infinity,
               padding: const EdgeInsets.all(32),
               decoration: const BoxDecoration(
                 color: Colors.transparent,
@@ -899,6 +911,8 @@ class _TasksViewState extends State<TasksView> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Container(
+            width: double.infinity,
+            height: double.infinity,
             padding: const EdgeInsets.all(32),
             decoration: const BoxDecoration(
               color: Colors.transparent,
@@ -934,6 +948,8 @@ class _TasksViewState extends State<TasksView> {
         if (snapshot.hasError) {
           final error = snapshot.error;
           return Container(
+            width: double.infinity,
+            height: double.infinity,
             padding: const EdgeInsets.all(32),
             decoration: const BoxDecoration(
               color: Colors.transparent,
@@ -981,6 +997,8 @@ class _TasksViewState extends State<TasksView> {
         final tasks = snapshot.data ?? [];
         if (tasks.isEmpty) {
           return Container(
+            width: double.infinity,
+            height: double.infinity,
             padding: const EdgeInsets.all(32),
             decoration: const BoxDecoration(
               color: Colors.transparent,
