@@ -65,8 +65,8 @@ class _HomeScreenState extends State<HomeScreen> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         gradient: isSelected 
-          ? LinearGradient(
-              colors: [Colors.white.withOpacity(0.2), Colors.white.withOpacity(0.1)],
+          ? const LinearGradient(
+              colors: [Colors.white, Colors.white],
             )
           : null,
       ),
@@ -76,24 +76,24 @@ class _HomeScreenState extends State<HomeScreen> {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: isSelected 
-                ? [Colors.white.withOpacity(0.3), Colors.white.withOpacity(0.1)]
+                ? [color.withOpacity(0.3), color.withOpacity(0.1)]
                 : [color.withOpacity(0.2), color.withOpacity(0.1)],
             ),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
             icon,
-            color: Colors.white,
+            color: isSelected ? const Color(0xFF1f2937) : Colors.white,
             size: 20,
           ),
         ),
-        title: Text(
-          title,
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+          title: Text(
+            title,
+            style: TextStyle(
+              color: isSelected ? const Color(0xFF1f2937) : Colors.white,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            ),
           ),
-        ),
         onTap: onTap,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
@@ -139,7 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icons.edit_outlined,
                 title: 'Manual Task',
                 subtitle: 'Create a task manually',
-                color: const Color(0xFF3b82f6),
+                color: const Color(0xFF4facfe),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(
@@ -155,7 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icons.psychology_outlined,
                 title: 'AI Assistant',
                 subtitle: 'Let AI help create your task',
-                color: const Color(0xFF10b981),
+                color: const Color(0xFF00f2fe),
                 onTap: () async {
                   Navigator.pop(context);
                   final result = await Navigator.push(
@@ -182,7 +182,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icons.mic_outlined,
                 title: 'Voice Input',
                 subtitle: 'Speak your task naturally',
-                color: const Color(0xFF8b5cf6),
+                color: const Color(0xFF667eea),
                 onTap: () async {
                   Navigator.pop(context);
                   await Navigator.push(
@@ -293,8 +293,8 @@ class _HomeScreenState extends State<HomeScreen> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFF1e3c72),
-                Color(0xFF2a5298),
+                Color(0xFF667eea),
+                Color(0xFF764ba2),
               ],
             ),
           ),
@@ -306,10 +306,10 @@ class _HomeScreenState extends State<HomeScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFF1e3c72),
-              Color(0xFF2a5298),
-              Color(0xFFf5f7fa),
-              Color(0xFFc3cfe2),
+              Color(0xFF667eea),
+              Color(0xFF764ba2),
+              Color(0xFFf093fb),
+              Color(0xFFf5576c),
             ],
             stops: [0.0, 0.3, 0.7, 1.0],
           ),
@@ -318,8 +318,22 @@ class _HomeScreenState extends State<HomeScreen> {
           child: _selectedIndex == 0
               ? TasksView(key: ValueKey(_currentFilter), filter: _currentFilter)
               : _selectedIndex == 1
-              ? const CalendarScreen()
-              : const SettingsScreen(),
+              ? Container(
+                  width: double.infinity,
+                  height: double.infinity,
+                  decoration: const BoxDecoration(
+                    color: Colors.transparent,
+                  ),
+                  child: const CalendarScreen(),
+                )
+              : Container(
+                  width: double.infinity,
+                  height: double.infinity,
+                  decoration: const BoxDecoration(
+                    color: Colors.transparent,
+                  ),
+                  child: const SettingsScreen(),
+                ),
         ),
       ),
       drawer: Drawer(
@@ -329,8 +343,8 @@ class _HomeScreenState extends State<HomeScreen> {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Color(0xFF1e3c72),
-                Color(0xFF2a5298),
+                Color(0xFF667eea),
+                Color(0xFF764ba2),
               ],
             ),
           ),
@@ -343,8 +357,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Color(0xFF4b79a1),
-                      Color(0xFF283e51),
+                      Color(0xFF2c3e50),
+                      Color(0xFF3498db),
                     ],
                   ),
                 ),
@@ -401,35 +415,35 @@ class _HomeScreenState extends State<HomeScreen> {
                 title: 'All Active',
                 isSelected: _selectedIndex == 0 && _currentFilter == TaskFilter.all,
                 onTap: () => _onFilterSelected(TaskFilter.all),
-                color: const Color(0xFF3b82f6),
+                color: const Color(0xFF4facfe),
               ),
               _buildDrawerItem(
                 icon: Icons.task_alt_outlined,
                 title: 'Active Tasks',
                 isSelected: _selectedIndex == 0 && _currentFilter == TaskFilter.tasks,
                 onTap: () => _onFilterSelected(TaskFilter.tasks),
-                color: const Color(0xFF10b981),
+                color: const Color(0xFF00f2fe),
               ),
               _buildDrawerItem(
                 icon: Icons.alarm,
                 title: 'Active Reminders',
                 isSelected: _selectedIndex == 0 && _currentFilter == TaskFilter.reminders,
                 onTap: () => _onFilterSelected(TaskFilter.reminders),
-                color: const Color(0xFFf59e0b),
+                color: const Color(0xFFffecd2),
               ),
               _buildDrawerItem(
                 icon: Icons.check_circle_outline,
                 title: 'Completed Tasks',
                 isSelected: _selectedIndex == 0 && _currentFilter == TaskFilter.completed,
                 onTap: () => _onFilterSelected(TaskFilter.completed),
-                color: const Color(0xFF22c55e),
+                color: const Color(0xFF4facfe),
               ),
               _buildDrawerItem(
                 icon: Icons.archive_outlined,
                 title: 'Archived',
                 isSelected: _selectedIndex == 0 && _currentFilter == TaskFilter.archived,
                 onTap: () => _onFilterSelected(TaskFilter.archived),
-                color: const Color(0xFF6b7280),
+                color: const Color(0xFFa8edea),
               ),
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -458,14 +472,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 title: 'Calendar',
                 isSelected: _selectedIndex == 1,
                 onTap: () => _onDrawerItemTap(1),
-                color: const Color(0xFF8b5cf6),
+                color: const Color(0xFFffecd2),
               ),
               _buildDrawerItem(
                 icon: Icons.settings_outlined,
                 title: 'Settings',
                 isSelected: _selectedIndex == 2,
                 onTap: () => _onDrawerItemTap(2),
-                color: const Color(0xFF64748b),
+                color: const Color(0xFFa8edea),
               ),
             ],
           ),
@@ -479,13 +493,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    Color(0xFF3b82f6),
-                    Color(0xFF1d4ed8),
+                    Color(0xFFf093fb),
+                    Color(0xFFf5576c),
                   ],
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF3b82f6).withOpacity(0.3),
+                    color: const Color(0xFFf093fb).withOpacity(0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 6),
                   ),
@@ -685,6 +699,9 @@ class _TasksViewState extends State<TasksView> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Container(
               padding: const EdgeInsets.all(32),
+              decoration: const BoxDecoration(
+                color: Colors.transparent,
+              ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -692,7 +709,7 @@ class _TasksViewState extends State<TasksView> {
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [Color(0xFF1e3c72), Color(0xFF2a5298)],
+                        colors: [Color(0xFF667eea), Color(0xFF764ba2)],
                       ),
                       shape: BoxShape.circle,
                     ),
@@ -715,13 +732,11 @@ class _TasksViewState extends State<TasksView> {
           }
           if (snapshot.hasError) {
             final error = snapshot.error;
-            return Center(child: Text('Error: $error'));
-          }
-
-          final tasks = snapshot.data ?? [];
-          if (tasks.isEmpty) {
             return Container(
               padding: const EdgeInsets.all(32),
+              decoration: const BoxDecoration(
+                color: Colors.transparent,
+              ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -729,7 +744,54 @@ class _TasksViewState extends State<TasksView> {
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [Color(0xFF10b981), Color(0xFF059669)],
+                        colors: [Color(0xFFf093fb), Color(0xFFf5576c)],
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Something went wrong',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Error: $error',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white.withOpacity(0.8),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final tasks = snapshot.data ?? [];
+          if (tasks.isEmpty) {
+            return Container(
+              padding: const EdgeInsets.all(32),
+              decoration: const BoxDecoration(
+                color: Colors.transparent,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF4facfe), Color(0xFF00f2fe)],
                       ),
                       shape: BoxShape.circle,
                     ),
@@ -795,7 +857,7 @@ class _TasksViewState extends State<TasksView> {
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
-                              colors: [Color(0xFF1e3c72), Color(0xFF2a5298)],
+                              colors: [Color(0xFF667eea), Color(0xFF764ba2)],
                             ),
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -838,6 +900,9 @@ class _TasksViewState extends State<TasksView> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Container(
             padding: const EdgeInsets.all(32),
+            decoration: const BoxDecoration(
+              color: Colors.transparent,
+            ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -868,13 +933,11 @@ class _TasksViewState extends State<TasksView> {
         }
         if (snapshot.hasError) {
           final error = snapshot.error;
-          return Center(child: Text('Error: $error'));
-        }
-
-        final tasks = snapshot.data ?? [];
-        if (tasks.isEmpty) {
           return Container(
             padding: const EdgeInsets.all(32),
+            decoration: const BoxDecoration(
+              color: Colors.transparent,
+            ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -882,7 +945,54 @@ class _TasksViewState extends State<TasksView> {
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF3b82f6), Color(0xFF1d4ed8)],
+                      colors: [Color(0xFFf093fb), Color(0xFFf5576c)],
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.error_outline,
+                    size: 48,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Something went wrong',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Error: $error',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.8),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
+        }
+
+        final tasks = snapshot.data ?? [];
+        if (tasks.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(32),
+            decoration: const BoxDecoration(
+              color: Colors.transparent,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFf093fb), Color(0xFFf5576c)],
                     ),
                     shape: BoxShape.circle,
                   ),
@@ -998,38 +1108,38 @@ class _TasksViewState extends State<TasksView> {
   Color _getCategoryColor(String category) {
     switch (category.toLowerCase()) {
       case 'academics':
-        return const Color(0xFF3b82f6);
+        return const Color(0xFF4facfe);
       case 'social':
-        return const Color(0xFF8b5cf6);
+        return const Color(0xFF667eea);
       case 'personal':
-        return const Color(0xFF10b981);
+        return const Color(0xFF00f2fe);
       case 'health':
-        return const Color(0xFFef4444);
+        return const Color(0xFFf093fb);
       case 'work':
-        return const Color(0xFFf59e0b);
+        return const Color(0xFFffecd2);
       case 'finance':
-        return const Color(0xFF06b6d4);
+        return const Color(0xFFa8edea);
       default:
-        return const Color(0xFF6b7280);
+        return const Color(0xFF764ba2);
     }
   }
 
   LinearGradient _getCategoryGradient(String category) {
     switch (category.toLowerCase()) {
       case 'academics':
-        return const LinearGradient(colors: [Color(0xFF3b82f6), Color(0xFF1d4ed8)]);
+        return const LinearGradient(colors: [Color(0xFF4facfe), Color(0xFF00f2fe)]);
       case 'social':
-        return const LinearGradient(colors: [Color(0xFF8b5cf6), Color(0xFF7c3aed)]);
+        return const LinearGradient(colors: [Color(0xFF667eea), Color(0xFF764ba2)]);
       case 'personal':
-        return const LinearGradient(colors: [Color(0xFF10b981), Color(0xFF059669)]);
+        return const LinearGradient(colors: [Color(0xFF00f2fe), Color(0xFF4facfe)]);
       case 'health':
-        return const LinearGradient(colors: [Color(0xFFef4444), Color(0xFFdc2626)]);
+        return const LinearGradient(colors: [Color(0xFFf093fb), Color(0xFFf5576c)]);
       case 'work':
-        return const LinearGradient(colors: [Color(0xFFf59e0b), Color(0xFFd97706)]);
+        return const LinearGradient(colors: [Color(0xFFffecd2), Color(0xFFfcb69f)]);
       case 'finance':
-        return const LinearGradient(colors: [Color(0xFF06b6d4), Color(0xFF0891b2)]);
+        return const LinearGradient(colors: [Color(0xFFa8edea), Color(0xFFfed6e3)]);
       default:
-        return const LinearGradient(colors: [Color(0xFF6b7280), Color(0xFF4b5563)]);
+        return const LinearGradient(colors: [Color(0xFF764ba2), Color(0xFF667eea)]);
     }
   }
 
@@ -1477,7 +1587,7 @@ class _TasksViewState extends State<TasksView> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: task.isCompleted 
-                        ? const LinearGradient(colors: [Color(0xFF10b981), Color(0xFF059669)])
+                        ? const LinearGradient(colors: [Color(0xFF4facfe), Color(0xFF00f2fe)])
                         : null,
                     border: Border.all(
                       color: task.isCompleted 
