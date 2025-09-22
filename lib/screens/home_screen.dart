@@ -4,8 +4,8 @@ import 'package:aiassistant1/services/task_services.dart';
 import 'package:aiassistant1/screens/create_task_screen.dart';
 import 'package:aiassistant1/screens/calendar_screen.dart';
 import 'package:aiassistant1/screens/settings_screen.dart';
-import 'package:aiassistant1/screens/ai_task_creation_screen.dart';
 import 'package:aiassistant1/screens/voice_task_creation_screen.dart';
+import 'package:aiassistant1/screens/quick_ai_task_screen.dart';
 // import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
@@ -152,59 +152,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 16),
               _buildTaskOption(
-                icon: Icons.psychology_outlined,
-                title: 'AI Assistant',
-                subtitle: 'Let AI help create your task',
-                color: const Color(0xFF00f2fe),
-                onTap: () async {
-                  Navigator.pop(context);
-                  print('DEBUG: About to navigate to AITaskCreationScreen');
-                  final result = await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AITaskCreationScreen(),
-                    ),
-                  );
-                  
-                  print('DEBUG: Received result from AITaskCreationScreen: $result');
-                  
-                  if (result != null && result is Map<String, dynamic>) {
-                    print('DEBUG: Result is valid, navigating to CreateTaskScreen');
-                    // Add a small delay to ensure context stabilizes after modal dismissal
-                    await Future.delayed(const Duration(milliseconds: 100));
-                    
-                    if (!mounted) {
-                      print('DEBUG: Widget not mounted after delay, skipping navigation');
-                      return;
-                    }
-                    
-                    try {
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => CreateTaskScreen(
-                            aiGeneratedData: result,
-                          ),
-                        ),
-                      );
-                      print('DEBUG: Successfully navigated to CreateTaskScreen');
-                    } catch (e) {
-                      print('DEBUG: Error navigating to CreateTaskScreen: $e');
-                      // Show error message to user
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Navigation error: ${e.toString()}'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    }
-                  }
-                },
-              ),
-              const SizedBox(height: 16),
-              _buildTaskOption(
                 icon: Icons.mic_outlined,
                 title: 'Voice Input',
                 subtitle: 'Speak your task naturally',
@@ -215,6 +162,22 @@ class _HomeScreenState extends State<HomeScreen> {
                     context,
                     MaterialPageRoute(
                       builder: (context) => const VoiceTaskCreationScreen(),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              _buildTaskOption(
+                icon: Icons.psychology_outlined,
+                title: 'AI Assistant',
+                subtitle: 'Let AI help create your task',
+                color: const Color(0xFF00f2fe),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => QuickAITaskScreen(),
                     ),
                   );
                 },
