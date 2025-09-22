@@ -51,8 +51,13 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   @override
   void initState() {
     super.initState();
+    print('DEBUG: CreateTaskScreen initState called');
+    print('DEBUG: widget.task: ${widget.task}');
+    print('DEBUG: widget.aiGeneratedData: ${widget.aiGeneratedData}');
+    
     if (widget.task != null) {
       // Editing existing task
+      print('DEBUG: Editing existing task');
       _titleController.text = widget.task!.title;
       _descriptionController.text = widget.task!.description ?? '';
       _dueDate = widget.task!.dueDate;
@@ -63,16 +68,20 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
       _updateAppBarColor();
     } else if (widget.aiGeneratedData != null) {
       // Creating new task with AI-generated data
+      print('DEBUG: Creating new task with AI-generated data');
       final aiData = widget.aiGeneratedData!;
+      print('DEBUG: aiData: $aiData');
       _titleController.text = aiData['title'] ?? '';
       _descriptionController.text = aiData['description'] ?? '';
       _dueDate = aiData['due_date'] ?? DateTime.now().add(const Duration(days: 1));
       _selectedCategory = aiData['category'] ?? 'other';
       _selectedPriority = _stringToPriority(aiData['priority']) ?? TaskPriority.medium;
       _isReminder = aiData['is_reminder'] ?? false;
+      print('DEBUG: Populated fields - title: ${_titleController.text}, category: $_selectedCategory, dueDate: $_dueDate');
       _updateAppBarColor();
     } else {
       // Creating new task without AI data
+      print('DEBUG: Creating new task without AI data');
       _dueDate = widget.initialDate ?? DateTime.now().add(const Duration(days: 1));
       // Initialize time to midnight for new tasks if no initialDate is provided with time
       _dueDate = DateTime(_dueDate.year, _dueDate.month, _dueDate.day, 0, 0);

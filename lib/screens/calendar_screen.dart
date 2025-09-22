@@ -3,7 +3,6 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:aiassistant1/models/task.dart';
 import 'package:aiassistant1/services/task_services.dart';
 import 'package:aiassistant1/screens/create_task_screen.dart';
-// import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
 class CalendarScreen extends StatefulWidget {

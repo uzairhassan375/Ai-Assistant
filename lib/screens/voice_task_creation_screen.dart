@@ -3,12 +3,13 @@ import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 // import 'package:firebase_auth/firebase_auth.dart';
 import 'package:aiassistant1/models/task.dart';
 import 'package:aiassistant1/services/task_services.dart';
 import 'package:aiassistant1/services/simple_notification_service.dart';
 import '../services/connectivity_service.dart';
+import '../utils/ai_config.dart';
+import 'package:api_key_pool/api_key_pool.dart';
 
 class VoiceTaskCreationScreen extends StatefulWidget {
   const VoiceTaskCreationScreen({super.key});
@@ -127,8 +128,8 @@ class _VoiceTaskCreationScreenState extends State<VoiceTaskCreationScreen> {
       return;
     }
 
-    final apiKey = dotenv.env['GEMINI_API_KEY'];
-    if (apiKey == null || apiKey.isEmpty) {
+    final apiKey = ApiKeyPool.getKey();
+    if (apiKey.isEmpty) {
       setState(() {
         _isProcessing = false;
       });
@@ -144,8 +145,9 @@ class _VoiceTaskCreationScreenState extends State<VoiceTaskCreationScreen> {
     }
 
     try {
+      final modelName = AIConfig.modelName;
       final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=$apiKey',
+        'https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey',
       );
 
       String prompt = """

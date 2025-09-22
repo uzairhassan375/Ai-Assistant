@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../services/connectivity_service.dart';
+import 'package:api_key_pool/api_key_pool.dart';
+import '../utils/ai_config.dart';
 
 class QuickAITaskScreen extends StatefulWidget {
   @override
@@ -122,14 +123,15 @@ class _QuickAITaskScreenState extends State<QuickAITaskScreen> {
         _isProcessing = true;
       });
 
-      final apiKey = dotenv.env['GEMINI_API_KEY'];
-      if (apiKey == null || apiKey.isEmpty) {
-        throw Exception('API key not found. Please check your .env file.');
+      final apiKey = ApiKeyPool.getKey();
+      if (apiKey.isEmpty) {
+        throw Exception('API key not found. Please check your API key pool configuration.');
       }
 
       // Make AI API call
+      final modelName = AIConfig.modelName;
       final response = await http.post(
-        Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=$apiKey'),
+        Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey'),
         headers: {
           'Content-Type': 'application/json',
         },

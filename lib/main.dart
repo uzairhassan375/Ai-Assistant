@@ -1,18 +1,20 @@
 import 'package:aiassistant1/firebase_options.dart';
 import 'package:aiassistant1/screens/home_screen.dart';
-// import 'package:aiassistant1/screens/user_registration/signin.dart';
-// import 'package:firebase_auth/firebase_auth.dart';
+import 'package:aiassistant1/services/remote-config-service.dart';
+import 'package:api_key_pool/api_key_pool.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:aiassistant1/services/simple_notification_service.dart';
 import 'package:aiassistant1/services/settings_service.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  await RemoteConfigService().initialize();
+  await ApiKeyPool.init('expense manager');
   
   // Initialize simple notification service
   final notificationService = SimpleNotificationService();
@@ -28,6 +30,10 @@ void main() async {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
+      static FirebaseAnalytics analytics = FirebaseAnalytics.instance;
+      static FirebaseAnalyticsObserver observer =
+      FirebaseAnalyticsObserver(analytics: analytics);
   
   // Global navigator key for notifications
   static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();

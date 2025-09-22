@@ -4,6 +4,8 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../utils/ai_config.dart';
+import 'package:api_key_pool/api_key_pool.dart';
 
 class VoiceCommandScreen extends StatefulWidget {
   @override
@@ -131,8 +133,10 @@ class _VoiceCommandScreenState extends State<VoiceCommandScreen> {
       });
 
       // Make the AI API call
+      final modelName = AIConfig.modelName;
+      final apiKey = ApiKeyPool.getKey();
       final response = await http.post(
-        Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${dotenv.env['GEMINI_API_KEY']}'),
+        Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey'),
         headers: {
           'Content-Type': 'application/json',
         },

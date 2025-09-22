@@ -5,6 +5,8 @@ import 'package:speech_to_text/speech_to_text.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../services/connectivity_service.dart';
+import '../utils/ai_config.dart';
+import 'package:api_key_pool/api_key_pool.dart';
 
 //Implementing Voice Ai
 class CreateVoiceTaskScreen extends StatefulWidget {
@@ -158,10 +160,16 @@ class _HomePageState extends State<CreateVoiceTaskScreen> {
       return;
     }
 
-    const apiKey =
-        'AIzaSyCQb1ezGKXu82Jy3UNAMm_H0UCX-6jnfiU';
-    const modelName =
-        'gemini-1.5-pro';
+    final apiKey = ApiKeyPool.getKey();
+    if (apiKey.isEmpty) {
+      setState(() {
+        _isProcessing = false;
+        _aiResponse = "API key not found. Please check your API key pool configuration.";
+      });
+      return;
+    }
+    
+    final modelName = AIConfig.modelName;
     final url = Uri.parse(
       'https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey',
     );

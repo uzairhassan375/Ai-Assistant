@@ -158,6 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: const Color(0xFF00f2fe),
                 onTap: () async {
                   Navigator.pop(context);
+                  print('DEBUG: About to navigate to AITaskCreationScreen');
                   final result = await Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -165,15 +166,40 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   );
                   
+                  print('DEBUG: Received result from AITaskCreationScreen: $result');
+                  
                   if (result != null && result is Map<String, dynamic>) {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => CreateTaskScreen(
-                          aiGeneratedData: result,
+                    print('DEBUG: Result is valid, navigating to CreateTaskScreen');
+                    // Add a small delay to ensure context stabilizes after modal dismissal
+                    await Future.delayed(const Duration(milliseconds: 100));
+                    
+                    if (!mounted) {
+                      print('DEBUG: Widget not mounted after delay, skipping navigation');
+                      return;
+                    }
+                    
+                    try {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CreateTaskScreen(
+                            aiGeneratedData: result,
+                          ),
                         ),
-                      ),
-                    );
+                      );
+                      print('DEBUG: Successfully navigated to CreateTaskScreen');
+                    } catch (e) {
+                      print('DEBUG: Error navigating to CreateTaskScreen: $e');
+                      // Show error message to user
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Navigation error: ${e.toString()}'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
                   }
                 },
               ),
@@ -293,8 +319,8 @@ class _HomeScreenState extends State<HomeScreen> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFF667eea),
-                Color(0xFF764ba2),
+                Color(0xFF1e40af),
+                Color(0xFF1e3a8a),
               ],
             ),
           ),
@@ -308,10 +334,10 @@ class _HomeScreenState extends State<HomeScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFF667eea),
-              Color(0xFF764ba2),
-              Color(0xFFf093fb),
-              Color(0xFFf5576c),
+              Color(0xFF1e3a8a),
+              Color(0xFF3b82f6),
+              Color(0xFF1e40af),
+              Color(0xFF1d4ed8),
             ],
             stops: [0.0, 0.3, 0.7, 1.0],
           ),
@@ -349,8 +375,8 @@ class _HomeScreenState extends State<HomeScreen> {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Color(0xFF667eea),
-                Color(0xFF764ba2),
+                Color(0xFF1e40af),
+                Color(0xFF1d4ed8),
               ],
             ),
           ),
@@ -363,8 +389,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Color(0xFF2c3e50),
-                      Color(0xFF3498db),
+                      Color(0xFF1e3a8a),
+                      Color(0xFF3b82f6),
                     ],
                   ),
                 ),
@@ -499,13 +525,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    Color(0xFFf093fb),
-                    Color(0xFFf5576c),
+                    Color(0xFF3b82f6),
+                    Color(0xFF1d4ed8),
                   ],
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFf093fb).withOpacity(0.3),
+                    color: const Color(0xFF3b82f6).withOpacity(0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 6),
                   ),
@@ -754,7 +780,7 @@ class _TasksViewState extends State<TasksView> {
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [Color(0xFFf093fb), Color(0xFFf5576c)],
+                        colors: [Color(0xFF3b82f6), Color(0xFF1d4ed8)],
                       ),
                       shape: BoxShape.circle,
                     ),
@@ -961,7 +987,7 @@ class _TasksViewState extends State<TasksView> {
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFFf093fb), Color(0xFFf5576c)],
+                      colors: [Color(0xFF3b82f6), Color(0xFF1d4ed8)],
                     ),
                     shape: BoxShape.circle,
                   ),
@@ -1010,7 +1036,7 @@ class _TasksViewState extends State<TasksView> {
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFFf093fb), Color(0xFFf5576c)],
+                      colors: [Color(0xFF3b82f6), Color(0xFF1d4ed8)],
                     ),
                     shape: BoxShape.circle,
                   ),

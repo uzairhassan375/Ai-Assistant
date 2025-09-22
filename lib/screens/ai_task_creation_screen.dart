@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 // import 'package:speech_to_text/speech_to_text.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../services/connectivity_service.dart';
+import '../utils/ai_config.dart';
+import 'package:api_key_pool/api_key_pool.dart';
 
 class AITaskCreationScreen extends StatefulWidget {
   final String? existingTitle;
@@ -100,8 +101,8 @@ class _AITaskCreationScreenState extends State<AITaskCreationScreen> {
     // Store the original user input to determine task type later
     _originalUserInput = userSpeech;
     
-    final apiKey = dotenv.env['GEMINI_API_KEY'];
-    if (apiKey == null || apiKey.isEmpty) {
+    final apiKey = ApiKeyPool.getKey();
+    if (apiKey.isEmpty) {
       setState(() {
         _isProcessing = false;
       });
@@ -123,7 +124,7 @@ class _AITaskCreationScreenState extends State<AITaskCreationScreen> {
       return;
     }
     
-    const modelName = 'models/gemini-2.0-flash';
+    final modelName = 'models/${AIConfig.modelName}';
 
     final url = Uri.parse(
       'https://generativelanguage.googleapis.com/v1/$modelName:generateContent?key=$apiKey',
@@ -336,9 +337,11 @@ User said: "$userSpeech"
 
   Future<void> _saveTask() async {
     if (_parsedResponse == null) {
+      print('DEBUG: _parsedResponse is null, returning early');
       return;
     }
 
+    print('DEBUG: Starting _saveTask with response: $_parsedResponse');
     setState(() {
       _isSaving = true;
     });
@@ -400,7 +403,10 @@ User said: "$userSpeech"
         'priority': _parsedResponse!['priority'] ?? 'medium',
       };
 
+      print('DEBUG: Created taskData: $taskData');
+
       if (mounted) {
+        print('DEBUG: About to navigate back with taskData');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Task data ready!'),
@@ -413,7 +419,9 @@ User said: "$userSpeech"
             ),
           ),
         );
+        print('DEBUG: Calling Navigator.pop with taskData');
         Navigator.of(context).pop(taskData); // Return parsed data instead of creating task
+        print('DEBUG: Navigator.pop completed');
       }
     } catch (e) {
       if (mounted) {
