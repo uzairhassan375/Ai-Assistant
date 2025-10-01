@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
@@ -7,6 +6,8 @@ import 'dart:convert';
 import '../services/connectivity_service.dart';
 import '../utils/ai_config.dart';
 import 'package:api_key_pool/api_key_pool.dart';
+import '../services/task_services.dart';
+import '../models/task.dart';
 
 //Implementing Voice Ai
 class CreateVoiceTaskScreen extends StatefulWidget {
@@ -113,28 +114,79 @@ class _HomePageState extends State<CreateVoiceTaskScreen> {
   Future<void> _saveTask() async {
     if (_parsedResponse == null) return;
 
-    await FirebaseFirestore.instance.collection('tasks').add({
-      'task': _parsedResponse!['task'],
-      'due_date': _parsedResponse!['due_date'],
-      'category': _parsedResponse!['category'],
-      'priority': _parsedResponse!['priority'],
-      'created_at': DateTime.now(),
-    });
+    try {
+      // Parse the due date
+      DateTime dueDate = DateTime.now().add(const Duration(days: 1));
+      if (_parsedResponse!['due_date'] != 'unknown') {
+        try {
+          final parts = _parsedResponse!['due_date'].split('-');
+          if (parts.length == 3) {
+            final day = int.parse(parts[0]);
+            final month = int.parse(parts[1]);
+            final year = int.parse(parts[2]);
+            dueDate = DateTime(year, month, day);
+          }
+        } catch (e) {
+          // Use default date if parsing fails
+        }
+      }
 
-    if (!mounted) return;
+      // Parse priority
+      TaskPriority priority = TaskPriority.medium;
+      if (_parsedResponse!['priority'] != null) {
+        try {
+          priority = TaskPriority.values.firstWhere(
+            (e) => e.toString().split('.').last == _parsedResponse!['priority'],
+            orElse: () => TaskPriority.medium,
+          );
+        } catch (e) {
+          priority = TaskPriority.medium;
+        }
+      }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Task "${_parsedResponse!['task']}" saved!'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+      // Create task object
+      final task = Task(
+        title: _parsedResponse!['task'],
+        description: null,
+        dueDate: dueDate,
+        userId: 'local_user', // Since we're using local storage, use a fixed user ID
+        category: _parsedResponse!['category'] ?? 'other',
+        priority: priority,
+        isCompleted: false,
+        isArchived: false,
+        isReminder: false,
+        subtasks: [],
+      );
 
-    setState(() {
-      _wordsSpoken = "";
-      _aiResponse = "";
-      _parsedResponse = null;
-    });
+      // Save task using TaskService
+      final taskService = TaskService();
+      await taskService.createTask(task);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Task "${_parsedResponse!['task']}" saved!'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      setState(() {
+        _wordsSpoken = "";
+        _aiResponse = "";
+        _parsedResponse = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save task: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   Future<void> _getGeminiResponse(String userSpeech) async {
@@ -347,33 +399,6 @@ User said: "$userSpeech"
   //     }
   //   }
 
-  void _saveTaskToFirebase() {
-    if (_parsedResponse == null) return;
-
-    // Here you would add your Firebase save logic
-    // Example:
-
-    FirebaseFirestore.instance.collection('tasks').add({
-      'task': _parsedResponse!['task'],
-      'due_date': _parsedResponse!['due_date'],
-      'category': _parsedResponse!['category'],
-      'created_at': DateTime.now(),
-    });
-
-    // Show confirmation
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Task "${_parsedResponse!['task']}" saved!'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-
-    // Clear the response
-    setState(() {
-      _aiResponse = "";
-      _parsedResponse = null;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -483,7 +508,7 @@ User said: "$userSpeech"
               padding: const EdgeInsets.only(bottom: 16.0),
               child: FloatingActionButton(
                 heroTag: 'confirmButton',
-                onPressed: _saveTaskToFirebase,
+                onPressed: _saveTask,
                 backgroundColor: Colors.green,
                 child: const Icon(Icons.check, color: Colors.white),
               ),

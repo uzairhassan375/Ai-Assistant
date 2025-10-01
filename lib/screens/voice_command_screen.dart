@@ -3,7 +3,6 @@ import '../services/connectivity_service.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../utils/ai_config.dart';
 import 'package:api_key_pool/api_key_pool.dart';
 

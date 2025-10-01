@@ -672,7 +672,7 @@ class _TasksViewState extends State<TasksView> {
 
   @override
   Widget build(BuildContext context) {
-    const String demoUserId = 'demo_user';
+    const String localUserId = 'demo_user';
 
     bool isArchivedView = widget.filter == TaskFilter.archived;
     bool isCompletedView = widget.filter == TaskFilter.completed;
@@ -687,7 +687,7 @@ class _TasksViewState extends State<TasksView> {
     if (isCompletedView) {
       return StreamBuilder<List<Task>>(
         stream: _taskService.getTasks(
-          demoUserId,
+          localUserId,
           filter: TaskViewFilter.completed,
         ),
         builder: (context, snapshot) {
@@ -893,7 +893,7 @@ class _TasksViewState extends State<TasksView> {
 
     return StreamBuilder<List<Task>>(
       stream: _taskService.getTasksStream(
-        userId: demoUserId,
+        userId: localUserId,
         isArchived: isArchivedView,
         isReminder: isReminder,
       ),

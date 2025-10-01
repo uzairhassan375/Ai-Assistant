@@ -336,7 +336,7 @@ User said: "$userSpeech"
       _isSaving = true;
     });
 
-    const String demoUserId = 'demo_user';
+    const String localUserId = 'demo_user';
 
     try {
       // Parse date and time
@@ -381,7 +381,7 @@ User said: "$userSpeech"
         title: _parsedResponse!['task'].toString(),
         description: null,
         dueDate: dueDate,
-        userId: demoUserId,
+        userId: localUserId,
         category: _parsedResponse!['category'],
         priority: TaskPriority.medium,
         isReminder: isReminderTask,

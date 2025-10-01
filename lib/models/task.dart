@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'subtask.dart'; 
 
 enum TaskPriority { low, medium, high, urgent }
@@ -34,7 +33,7 @@ class Task {
     return {
       'title': title,
       'description': description,
-      'dueDate': Timestamp.fromDate(dueDate),
+      'dueDate': dueDate.toIso8601String(),
       'isCompleted': isCompleted,
       'userId': userId,
       'category': category,
@@ -50,16 +49,16 @@ class Task {
       id: id,
       title: map['title'] ?? '',
       description: map['description'],
-      dueDate: (map['dueDate'] as Timestamp).toDate(),
-      isCompleted: map['isCompleted'] ?? false,
+      dueDate: DateTime.parse(map['dueDate']),
+      isCompleted: map['isCompleted'] == 1 || map['isCompleted'] == true,
       userId: map['userId'] ?? '',
       category: map['category'] ?? 'other',
       priority: TaskPriority.values.firstWhere(
         (e) => e.toString().split('.').last == (map['priority'] ?? 'medium'),
         orElse: () => TaskPriority.medium,
       ),
-      isArchived: map['isArchived'] ?? false,
-      isReminder: map['isReminder'] ?? false,
+      isArchived: map['isArchived'] == 1 || map['isArchived'] == true,
+      isReminder: map['isReminder'] == 1 || map['isReminder'] == true,
       subtasks: (map['subtasks'] as List<dynamic>?)
               ?.map((s) => Subtask.fromMap(Map<String, dynamic>.from(s)))
               .toList() ??

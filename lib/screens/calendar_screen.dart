@@ -47,7 +47,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     final tasks =
         await _taskService
-            .getTasksByDateRange(demoUserId, startDate, endDate)
+            .getTasksForCalendar(demoUserId, startDate, endDate)
             .first;
 
     final Map<DateTime, List<Task>> newEvents = {};

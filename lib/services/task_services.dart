@@ -1,6 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:aiassistant1/models/task.dart';
-import 'package:aiassistant1/services/simple_notification_service.dart';
+import 'package:aiassistant1/services/database_helper.dart';
+import 'dart:async';
 
 enum TaskSortOption { dueDate, priority, title, category }
 
@@ -9,8 +9,7 @@ enum TaskViewFilter { active, completed, archived, all }
 enum TaskOrReminderFilter { all, tasks, reminders }
 
 class TaskService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final String _collection = 'tasks';
+  final DatabaseHelper _dbHelper = DatabaseHelper();
 
   // Stream for the home screen
   Stream<List<Task>> getTasksStream({
@@ -18,70 +17,21 @@ class TaskService {
     required bool isArchived,
     bool? isReminder, // Null for all, true for reminders, false for tasks
   }) {
-    Query query = _firestore
-        .collection(_collection)
-        .where('userId', isEqualTo: userId)
-        .where('isArchived', isEqualTo: isArchived);
-
-    // Re-enable the isCompleted filter to test the full compound query
-    // For active tasks, we also filter out completed ones
-    if (!isArchived) {
-      query = query.where('isCompleted', isEqualTo: false);
-    }
-
-    if (isReminder != null) {
-      query = query.where('isReminder', isEqualTo: isReminder);
-    }
-
-    // Re-enable orderBy to test if it causes indexing issues
-    query = query.orderBy('dueDate');
-
-    // Temporarily remove orderBy to test if it's causing indexing issues
-    return query.snapshots().handleError((error) {
-      // Check if it's a missing index error
-      if (error.toString().contains('failed-precondition') || 
-          error.toString().contains('index') ||
-          error.toString().contains('The query requires an index')) {
-        
-        // Extract the index creation URL if available
-        final match = RegExp(r'https://console\.firebase\.google\.com[^\s]+')
-            .firstMatch(error.toString());
-        if (match != null) {
-          // Missing index detected
-        } else {
-          // Composite index needed
-        }
-      }
-      throw error;
-    }).map((snapshot) {
-      final allDocs = snapshot.docs;
-      
-      final tasks = allDocs
-          .map(
-            (doc) {
-              try {
-                final task = Task.fromMap(doc.id, doc.data() as Map<String, dynamic>);
-                return task;
-              } catch (e) {
-                return null;
-              }
-            }
-          )
-          .where((task) => task != null)
-          .cast<Task>()
-          .toList();
-
-      return tasks;
+    return Stream.periodic(const Duration(seconds: 1)).asyncMap((_) async {
+      return await _dbHelper.getTasks(
+        userId: userId,
+        isArchived: isArchived,
+        isCompleted: isArchived ? null : false, // For active tasks, filter out completed ones
+        isReminder: isReminder,
+      );
     });
   }
 
   // Create a new task
   Future<Task> createTask(Task task) async {
     try {
-      DocumentReference docRef = await _firestore
-          .collection(_collection)
-          .add(task.toMap());
-      return task.copyWith(id: docRef.id);
+      final taskId = await _dbHelper.createTask(task);
+      return task.copyWith(id: taskId);
     } catch (e) {
       throw Exception('Failed to create task: $e');
     }
@@ -94,67 +44,65 @@ class TaskService {
     TaskViewFilter filter = TaskViewFilter.all,
     TaskOrReminderFilter typeFilter = TaskOrReminderFilter.all,
   }) {
-    Query query = _firestore
-        .collection(_collection)
-        .where('userId', isEqualTo: userId);
+    return Stream.periodic(const Duration(seconds: 1)).asyncMap((_) async {
+      bool? isArchived;
+      bool? isCompleted;
+      bool? isReminder;
 
-    // Apply view filtering (active, completed, archived, all)
-    switch (filter) {
-      case TaskViewFilter.active:
-        query = query
-            .where('isArchived', isEqualTo: false)
-            .where('isCompleted', isEqualTo: false);
-        break;
-      case TaskViewFilter.completed:
-        query = query
-            .where('isCompleted', isEqualTo: true)
-            .where('isArchived', isEqualTo: false);
-        break;
-      case TaskViewFilter.archived:
-        query = query.where('isArchived', isEqualTo: true);
-        break;
-      case TaskViewFilter.all:
-        // No additional filtering needed
-        break;
-    }
+      // Apply view filtering
+      switch (filter) {
+        case TaskViewFilter.active:
+          isArchived = false;
+          isCompleted = false;
+          break;
+        case TaskViewFilter.completed:
+          isArchived = false;
+          isCompleted = true;
+          break;
+        case TaskViewFilter.archived:
+          isArchived = true;
+          break;
+        case TaskViewFilter.all:
+          // No additional filtering needed
+          break;
+      }
 
-    // Apply type filtering (tasks, reminders, all)
-    switch (typeFilter) {
-      case TaskOrReminderFilter.tasks:
-        query = query.where('isReminder', isEqualTo: false);
-        break;
-      case TaskOrReminderFilter.reminders:
-        query = query.where('isReminder', isEqualTo: true);
-        break;
-      case TaskOrReminderFilter.all:
-        // No additional filtering needed
-        break;
-    }
+      // Apply type filtering
+      switch (typeFilter) {
+        case TaskOrReminderFilter.tasks:
+          isReminder = false;
+          break;
+        case TaskOrReminderFilter.reminders:
+          isReminder = true;
+          break;
+        case TaskOrReminderFilter.all:
+          // No additional filtering needed
+          break;
+      }
 
-    // Apply sorting
-    switch (sortBy) {
-      case TaskSortOption.dueDate:
-        query = query.orderBy('dueDate');
-        break;
-      case TaskSortOption.priority:
-        query = query.orderBy('priority');
-        break;
-      case TaskSortOption.title:
-        query = query.orderBy('title');
-        break;
-      case TaskSortOption.category:
-        query = query.orderBy('category');
-        break;
-    }
+      String orderBy;
+      switch (sortBy) {
+        case TaskSortOption.dueDate:
+          orderBy = 'dueDate';
+          break;
+        case TaskSortOption.priority:
+          orderBy = 'priority';
+          break;
+        case TaskSortOption.title:
+          orderBy = 'title';
+          break;
+        case TaskSortOption.category:
+          orderBy = 'category';
+          break;
+      }
 
-    return query.snapshots().map((snapshot) {
-      List<Task> tasks =
-          snapshot.docs
-              .map(
-                (doc) =>
-                    Task.fromMap(doc.id, doc.data() as Map<String, dynamic>),
-              )
-              .toList();
+      List<Task> tasks = await _dbHelper.getTasks(
+        userId: userId,
+        isArchived: isArchived,
+        isCompleted: isCompleted,
+        isReminder: isReminder,
+        orderBy: orderBy,
+      );
 
       // Additional sorting for priority since it's an enum
       if (sortBy == TaskSortOption.priority) {
@@ -168,12 +116,7 @@ class TaskService {
   // Get a single task by ID
   Future<Task?> getTask(String taskId) async {
     try {
-      DocumentSnapshot doc =
-          await _firestore.collection(_collection).doc(taskId).get();
-      if (doc.exists) {
-        return Task.fromMap(doc.id, doc.data() as Map<String, dynamic>);
-      }
-      return null;
+      return await _dbHelper.getTask(taskId);
     } catch (e) {
       throw Exception('Failed to get task: $e');
     }
@@ -182,10 +125,7 @@ class TaskService {
   // Update a task
   Future<void> updateTask(Task task) async {
     try {
-      await _firestore
-          .collection(_collection)
-          .doc(task.id)
-          .update(task.toMap());
+      await _dbHelper.updateTask(task);
     } catch (e) {
       throw Exception('Failed to update task: $e');
     }
@@ -194,9 +134,7 @@ class TaskService {
   // Archive a task
   Future<void> archiveTask(String taskId) async {
     try {
-      await _firestore.collection(_collection).doc(taskId).update({
-        'isArchived': true,
-      });
+      await _dbHelper.archiveTask(taskId);
     } catch (e) {
       throw Exception('Failed to archive task: $e');
     }
@@ -205,9 +143,7 @@ class TaskService {
   // Unarchive a task (for trash/archived view)
   Future<void> unarchiveTask(String taskId) async {
     try {
-      await _firestore.collection(_collection).doc(taskId).update({
-        'isArchived': false,
-      });
+      await _dbHelper.unarchiveTask(taskId);
     } catch (e) {
       throw Exception('Failed to unarchive task: $e');
     }
@@ -219,82 +155,161 @@ class TaskService {
     bool isReminder = false,
   }) async {
     try {
-      await _firestore.collection(_collection).doc(taskId).delete();
-      if (isReminder) {
-        final notificationService = SimpleNotificationService();
-        // Cancel notification using the task ID directly
-        final notificationId = taskId.hashCode.abs() % 1000000;
-        await notificationService.cancelNotificationById(notificationId);
-      }
+      await _dbHelper.deleteTask(taskId);
     } catch (e) {
-      throw Exception('Failed to delete task permanently: $e');
+      throw Exception('Failed to delete task: $e');
     }
   }
 
-  // Toggle task completion status
+  // Toggle task completion
   Future<void> toggleTaskCompletion(String taskId, bool isCompleted) async {
     try {
-      await _firestore.collection(_collection).doc(taskId).update({
-        'isCompleted': isCompleted,
-      });
+      await _dbHelper.toggleTaskCompletion(taskId, isCompleted);
     } catch (e) {
       throw Exception('Failed to toggle task completion: $e');
     }
   }
 
-  // Get tasks by date range
-  Stream<List<Task>> getTasksByDateRange(
+  // Get tasks for calendar view
+  Stream<List<Task>> getTasksForCalendar(
     String userId,
     DateTime startDate,
     DateTime endDate, {
     TaskViewFilter filter = TaskViewFilter.all,
     TaskOrReminderFilter typeFilter = TaskOrReminderFilter.all,
   }) {
-    Query query = _firestore
-        .collection(_collection)
-        .where('userId', isEqualTo: userId)
-        .where('dueDate', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
-        .where('dueDate', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
+    return Stream.periodic(const Duration(seconds: 1)).asyncMap((_) async {
+      bool? isArchived;
+      bool? isCompleted;
+      bool? isReminder;
 
-    // Apply view filtering
-    switch (filter) {
-      case TaskViewFilter.active:
-        query = query
-            .where('isArchived', isEqualTo: false)
-            .where('isCompleted', isEqualTo: false);
-        break;
-      case TaskViewFilter.completed:
-        query = query
-            .where('isCompleted', isEqualTo: true)
-            .where('isArchived', isEqualTo: false);
-        break;
-      case TaskViewFilter.archived:
-        query = query.where('isArchived', isEqualTo: true);
-        break;
-      case TaskViewFilter.all:
-        // No additional filtering needed
-        break;
-    }
+      // Apply view filtering
+      switch (filter) {
+        case TaskViewFilter.active:
+          isArchived = false;
+          isCompleted = false;
+          break;
+        case TaskViewFilter.completed:
+          isArchived = false;
+          isCompleted = true;
+          break;
+        case TaskViewFilter.archived:
+          isArchived = true;
+          break;
+        case TaskViewFilter.all:
+          // No additional filtering needed
+          break;
+      }
 
-    // Apply type filtering
-    switch (typeFilter) {
-      case TaskOrReminderFilter.tasks:
-        query = query.where('isReminder', isEqualTo: false);
-        break;
-      case TaskOrReminderFilter.reminders:
-        query = query.where('isReminder', isEqualTo: true);
-        break;
-      case TaskOrReminderFilter.all:
-        // No additional filtering needed
-        break;
-    }
+      // Apply type filtering
+      switch (typeFilter) {
+        case TaskOrReminderFilter.tasks:
+          isReminder = false;
+          break;
+        case TaskOrReminderFilter.reminders:
+          isReminder = true;
+          break;
+        case TaskOrReminderFilter.all:
+          // No additional filtering needed
+          break;
+      }
 
-    return query.orderBy('dueDate').snapshots().map((snapshot) {
-      return snapshot.docs
-          .map(
-            (doc) => Task.fromMap(doc.id, doc.data() as Map<String, dynamic>),
-          )
-          .toList();
+      return await _dbHelper.getTasks(
+        userId: userId,
+        isArchived: isArchived,
+        isCompleted: isCompleted,
+        isReminder: isReminder,
+        startDate: startDate,
+        endDate: endDate,
+        orderBy: 'dueDate',
+      );
     });
+  }
+
+  // Get task statistics
+  Future<Map<String, int>> getTaskStats(String userId) async {
+    try {
+      return await _dbHelper.getTaskStats(userId);
+    } catch (e) {
+      throw Exception('Failed to get task stats: $e');
+    }
+  }
+
+  // Search tasks
+  Future<List<Task>> searchTasks(String userId, String query) async {
+    try {
+      final allTasks = await _dbHelper.getTasks(userId: userId);
+      return allTasks.where((task) {
+        return task.title.toLowerCase().contains(query.toLowerCase()) ||
+               (task.description?.toLowerCase().contains(query.toLowerCase()) ?? false) ||
+               task.category.toLowerCase().contains(query.toLowerCase());
+      }).toList();
+    } catch (e) {
+      throw Exception('Failed to search tasks: $e');
+    }
+  }
+
+  // Get tasks by category
+  Future<List<Task>> getTasksByCategory(String userId, String category) async {
+    try {
+      return await _dbHelper.getTasks(
+        userId: userId,
+        category: category,
+        isArchived: false,
+      );
+    } catch (e) {
+      throw Exception('Failed to get tasks by category: $e');
+    }
+  }
+
+  // Get overdue tasks
+  Future<List<Task>> getOverdueTasks(String userId) async {
+    try {
+      final now = DateTime.now();
+      final allTasks = await _dbHelper.getTasks(
+        userId: userId,
+        isArchived: false,
+        isCompleted: false,
+      );
+      return allTasks.where((task) => task.dueDate.isBefore(now)).toList();
+    } catch (e) {
+      throw Exception('Failed to get overdue tasks: $e');
+    }
+  }
+
+  // Get tasks due today
+  Future<List<Task>> getTasksDueToday(String userId) async {
+    try {
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day);
+      final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
+      
+      return await _dbHelper.getTasks(
+        userId: userId,
+        isArchived: false,
+        startDate: startOfDay,
+        endDate: endOfDay,
+      );
+    } catch (e) {
+      throw Exception('Failed to get tasks due today: $e');
+    }
+  }
+
+  // Get tasks due this week
+  Future<List<Task>> getTasksDueThisWeek(String userId) async {
+    try {
+      final now = DateTime.now();
+      final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+      final endOfWeek = startOfWeek.add(const Duration(days: 6));
+      
+      return await _dbHelper.getTasks(
+        userId: userId,
+        isArchived: false,
+        startDate: startOfWeek,
+        endDate: endOfWeek,
+      );
+    } catch (e) {
+      throw Exception('Failed to get tasks due this week: $e');
+    }
   }
 }
