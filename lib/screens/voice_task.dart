@@ -169,9 +169,10 @@ class _HomePageState extends State<CreateVoiceTaskScreen> {
       return;
     }
     
-    final modelName = AIConfig.modelName;
+    final modelName = 'models/${AIConfig.modelName}';
+
     final url = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey',
+      'https://generativelanguage.googleapis.com/v1/$modelName:generateContent?key=$apiKey',
     );
 
     try {

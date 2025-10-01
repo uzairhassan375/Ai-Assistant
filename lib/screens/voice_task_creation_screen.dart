@@ -145,6 +145,10 @@ class _VoiceTaskCreationScreenState extends State<VoiceTaskCreationScreen> {
     }
 
     try {
+      setState(() {
+        _isProcessing = true;
+      });
+
       final modelName = AIConfig.modelName;
       final url = Uri.parse(
         'https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey',
@@ -196,6 +200,7 @@ User said: "$userSpeech"
               "generationConfig": {
                 "temperature": 0.3,
                 "maxOutputTokens": 300,
+                "responseMimeType": "application/json",
               },
             }),
           )
@@ -234,7 +239,11 @@ User said: "$userSpeech"
           };
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error parsing response: ${e.toString()}')),
+              const SnackBar(
+                content: Text('Check your internet connection or Try again in a few minutes'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 4),
+              ),
             );
           }
         }
@@ -251,13 +260,20 @@ User said: "$userSpeech"
       // Handle network errors specifically
       if (_connectivityService.isNetworkError(e)) {
         _connectivityService.handleNetworkError(context, e);
+        setState(() {
+          _isProcessing = false;
+        });
       } else {
         setState(() {
           _isProcessing = false;
         });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: ${e.toString()}')),
+            const SnackBar(
+              content: Text('Check your internet connection or Try again in a few minutes'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 4),
+            ),
           );
         }
       }
@@ -377,9 +393,9 @@ User said: "$userSpeech"
       final createdTask = await taskService.createTask(task);
       
       // Schedule notification if reminder is enabled
-      if (task.isReminder) {
+      if (createdTask.isReminder) {
         final notificationService = SimpleNotificationService();
-        await notificationService.scheduleTaskReminder(task);
+        await notificationService.scheduleTaskReminder(createdTask);
       }
 
       if (mounted) {
@@ -391,7 +407,11 @@ User said: "$userSpeech"
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save task: $e')),
+          const SnackBar(
+            content: Text('Check your internet connection or Try again in a few minutes'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 4),
+          ),
         );
       }
     } finally {
