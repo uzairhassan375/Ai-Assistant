@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:aiassistant1/models/task.dart';
 import 'package:aiassistant1/services/simple_time_manager.dart';
 
@@ -8,10 +9,6 @@ class SimpleNotificationService {
   SimpleNotificationService._internal();
 
   final SimpleTimeManager _timeManager = SimpleTimeManager();
-
-  // Custom notification icon configuration
-  static const String notificationIcon = '@drawable/ic_stat_notify';
-  static const String largeNotificationIcon = '@mipmap/ic_launcher';
 
   /// Initialize the notification service
   Future<void> initialize() async {
@@ -78,10 +75,6 @@ class SimpleNotificationService {
   Future<void> cancelNotificationById(int notificationId) async {
     await _timeManager.cancelNotification(notificationId);
   }
-
-  /// Note: Custom notification icon is configured in SimpleTimeManager
-  /// All notifications will use the icon: @drawable/ic_stat_notify
-  /// This is set in both Android initialization and notification details
 
   /// Schedule multiple reminders for a task (5 minutes before, at due time, 5 minutes after)
   Future<void> scheduleMultipleReminders(Task task) async {

@@ -21,7 +21,7 @@ class SimpleTimeManager {
       tz.initializeTimeZones();
       
       // Initialize notifications
-      const androidSettings = AndroidInitializationSettings('@drawable/ic_stat_notify');
+      const androidSettings = AndroidInitializationSettings('@drawable/ic_notification');
       const iosSettings = DarwinInitializationSettings(
         requestAlertPermission: true,
         requestBadgePermission: true,
@@ -80,7 +80,7 @@ class SimpleTimeManager {
         playSound: true,
         enableVibration: true,
         category: isAlarm ? AndroidNotificationCategory.alarm : AndroidNotificationCategory.reminder,
-        icon: '@drawable/ic_stat_notify',
+        icon: '@drawable/ic_task_notification',
         largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
       );
       
@@ -132,7 +132,7 @@ class SimpleTimeManager {
         playSound: true,
         enableVibration: true,
         category: AndroidNotificationCategory.message,
-        icon: '@drawable/ic_stat_notify',
+        icon: '@drawable/ic_notification',
         largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
       );
       
