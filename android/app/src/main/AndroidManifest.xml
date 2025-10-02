@@ -1,5 +1,4 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Removed notification and battery optimization related permissions for demo release -->
 
     <!-- Permissions for voice and internet -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
@@ -36,8 +35,7 @@
                  to determine the Window background behind the Flutter UI. -->
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
-              android:resource="@style/NormalTheme"
-              />
+              android:resource="@drawable/ic_stat_notify" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>

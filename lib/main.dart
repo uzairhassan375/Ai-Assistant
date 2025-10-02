@@ -16,7 +16,8 @@ void main() async {
   await RemoteConfigService().initialize();
   await ApiKeyPool.init('expense manager');
   
-  // Initialize simple notification service
+  // Initialize simple notification service with custom icon (@drawable/ic_stat_notify)
+  // This ensures all notifications use the custom icon defined in AndroidManifest.xml
   final notificationService = SimpleNotificationService();
   await notificationService.initialize();
   
