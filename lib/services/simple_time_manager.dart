@@ -21,7 +21,7 @@ class SimpleTimeManager {
       tz.initializeTimeZones();
       
       // Initialize notifications
-      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const androidSettings = AndroidInitializationSettings('@drawable/ic_notification');
       const iosSettings = DarwinInitializationSettings(
         requestAlertPermission: true,
         requestBadgePermission: true,
@@ -80,6 +80,8 @@ class SimpleTimeManager {
         playSound: true,
         enableVibration: true,
         category: isAlarm ? AndroidNotificationCategory.alarm : AndroidNotificationCategory.reminder,
+        icon: '@drawable/ic_task_notification',
+        largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
       );
       
       final iosDetails = DarwinNotificationDetails(
@@ -121,7 +123,7 @@ class SimpleTimeManager {
 
     try {
       
-      const androidDetails = AndroidNotificationDetails(
+      final androidDetails = AndroidNotificationDetails(
         'immediate_notifications',
         'Immediate Notifications',
         channelDescription: 'Immediate notifications for testing',
@@ -130,6 +132,8 @@ class SimpleTimeManager {
         playSound: true,
         enableVibration: true,
         category: AndroidNotificationCategory.message,
+        icon: '@drawable/ic_notification',
+        largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
       );
       
       const iosDetails = DarwinNotificationDetails(
@@ -139,7 +143,7 @@ class SimpleTimeManager {
         interruptionLevel: InterruptionLevel.critical,
       );
       
-      const notificationDetails = NotificationDetails(
+      final notificationDetails = NotificationDetails(
         android: androidDetails,
         iOS: iosDetails,
       );
